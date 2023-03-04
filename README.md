@@ -1,0 +1,3 @@
+# Terraform Operator Remote Controller
+
+This is another controller that listens to tf resource events. What is does is tbd...
