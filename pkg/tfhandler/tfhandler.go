@@ -265,7 +265,7 @@ func accessToken(host, user, password string) string {
 	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	response, err := client.Do(request)
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 	defer response.Body.Close()
 
