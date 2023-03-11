@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -19,10 +20,17 @@ func kubernetesConfig(kubeconfigPath string) *rest.Config {
 }
 
 func main() {
-	config := kubernetesConfig(os.Getenv("KUBECONFIG"))
+	kubeconfig := os.Getenv("KUBECONFIG")
+	proto := os.Getenv("TFO_API_PROTOCOL")
+	host := os.Getenv("TFO_API_HOST")
+	port := os.Getenv("TFO_API_PORT")
+	user := os.Getenv("TFO_API_LOGIN_USER")
+	password := os.Getenv("TFO_API_LOGIN_PASSWORD")
+	url := fmt.Sprintf("%s://%s:%s", proto, host, port)
+	config := kubernetesConfig(kubeconfig)
 	// client := kubernetes.NewForConfigOrDie(config)
 	dynamicClient := dynamic.NewForConfigOrDie(config)
-	tfinformer := tfhandler.NewInformer(dynamicClient)
+	tfinformer := tfhandler.NewInformer(dynamicClient, url, user, password)
 
 	tfinformer.Run()
 

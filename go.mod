@@ -3,9 +3,30 @@ module github.com/galleybytes/monitor/projects/terraform-operator-remote-control
 go 1.19
 
 require (
+	github.com/galleybytes/terraform-operator-api v0.0.0-20230214024810-4a6c274dda46
 	github.com/isaaguilar/terraform-operator v0.9.0-beta1
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.26.1
+)
+
+require (
+	github.com/gin-contrib/sse v0.1.0 // indirect
+	github.com/gin-gonic/gin v1.8.1 // indirect
+	github.com/go-playground/locales v0.14.0 // indirect
+	github.com/go-playground/universal-translator v0.18.0 // indirect
+	github.com/go-playground/validator/v10 v10.11.0 // indirect
+	github.com/goccy/go-json v0.9.11 // indirect
+	github.com/golang-jwt/jwt/v4 v4.4.3 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/leodido/go-urn v1.2.1 // indirect
+	github.com/mattn/go-isatty v0.0.16 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
+	github.com/ugorji/go/codec v1.2.11 // indirect
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
+	gorm.io/gorm v1.23.8 // indirect
 )
 
 require (
