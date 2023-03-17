@@ -21,6 +21,7 @@ func kubernetesConfig(kubeconfigPath string) *rest.Config {
 
 func main() {
 	kubeconfig := os.Getenv("KUBECONFIG")
+	clientName := os.Getenv("CLIENT_NAME")
 	proto := os.Getenv("TFO_API_PROTOCOL")
 	host := os.Getenv("TFO_API_HOST")
 	port := os.Getenv("TFO_API_PORT")
@@ -30,7 +31,7 @@ func main() {
 	config := kubernetesConfig(kubeconfig)
 	// client := kubernetes.NewForConfigOrDie(config)
 	dynamicClient := dynamic.NewForConfigOrDie(config)
-	tfinformer := tfhandler.NewInformer(dynamicClient, url, user, password)
+	tfinformer := tfhandler.NewInformer(dynamicClient, clientName, url, user, password)
 
 	tfinformer.Run()
 

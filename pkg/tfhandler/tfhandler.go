@@ -7,10 +7,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/galleybytes/terraform-operator-api/pkg/api"
+	"github.com/galleybytes/terraform-operator-api/pkg/common/models"
 	tfv1alpha2 "github.com/isaaguilar/terraform-operator/pkg/apis/tf/v1alpha2"
 	gocache "github.com/patrickmn/go-cache"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -38,10 +40,11 @@ type informer struct {
 	httpClient *http.Client
 	host       string
 	token      string
+	clusterID  string
 	cache      *gocache.Cache
 }
 
-func NewInformer(dynamicClient *dynamic.DynamicClient, host, user, password string) informer {
+func NewInformer(dynamicClient *dynamic.DynamicClient, clientName, host, user, password string) informer {
 	token := accessToken(host, user, password)
 
 	tfhandler := informer{
@@ -50,6 +53,13 @@ func NewInformer(dynamicClient *dynamic.DynamicClient, host, user, password stri
 		token:      token,
 		cache:      gocache.New(10*time.Minute, 10*time.Minute),
 	}
+
+	clusterID, err := tfhandler.registerCluster(clientName)
+	if err != nil {
+		log.Panic(err)
+	}
+	tfhandler.clusterID = clusterID
+
 	handler := cache.ResourceEventHandlerFuncs{
 		AddFunc:    tfhandler.addEvent,
 		UpdateFunc: tfhandler.updateEvent,
@@ -78,7 +88,7 @@ func (i informer) addEvent(obj interface{}) {
 	}
 	log.Printf("Add event observed '%s'", tf.Name)
 
-	postRequest, err := i.fmtRequest("POST", *tf)
+	postRequest, err := i.fmtEventRequest("POST", *tf)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -105,7 +115,7 @@ func (i informer) addEvent(obj interface{}) {
 	}
 
 	// The result was that the resource already exists so do a put to update
-	putRequest, err := i.fmtRequest("PUT", *tf)
+	putRequest, err := i.fmtEventRequest("PUT", *tf)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -145,7 +155,7 @@ func (i informer) updateEvent(old, new interface{}) {
 		log.Println("Observed update event: ", tfnew.Name)
 	}
 
-	putRequest, err := i.fmtRequest("PUT", *tfnew)
+	putRequest, err := i.fmtEventRequest("PUT", *tfnew)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -190,18 +200,26 @@ func assertTf(obj interface{}) (*tfv1alpha2.Terraform, error) {
 	return &tf, nil
 }
 
-func (i informer) fmtRequest(method string, tf tfv1alpha2.Terraform) (*http.Request, error) {
+func (i informer) fmtEventRequest(method string, tf tfv1alpha2.Terraform) (*http.Request, error) {
 	jsonData, err := json.Marshal(tf)
 	if err != nil {
 		return nil, fmt.Errorf("ERROR marshaling added tf: %s", err)
-
 	}
-	url := fmt.Sprintf("%s/api/v1/cluster/1/event", i.host)
+	url := fmt.Sprintf("%s/api/v1/cluster/%s/event", i.host, i.clusterID)
 	request, err := http.NewRequest(method, url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("ERROR setting up request to add resource: %s", err)
 	}
+	return request, nil
+}
 
+func (i informer) fmtClusterRequest(clusterName string) (*http.Request, error) {
+	jsonData := []byte(fmt.Sprintf(`{"cluster_name":"%s"}`, clusterName))
+	url := fmt.Sprintf("%s/api/v1/cluster", i.host)
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("ERROR setting up request to get cluster id: %s", err)
+	}
 	return request, nil
 
 }
@@ -236,11 +254,13 @@ func (i informer) doRequest(request *http.Request) (*Result, error) {
 	structuredResponse := api.Response{}
 	err = json.Unmarshal(responseBody, &structuredResponse)
 	if err != nil {
-		return nil, err
-	}
-
-	if !status200 {
-		errMsg += fmt.Sprintf(": %s", structuredResponse.StatusInfo.Message)
+		status200 = false
+		errMsg += fmt.Sprintf(" with the following response in the body: %s", string(responseBody))
+	} else {
+		data = structuredResponse
+		if !status200 {
+			errMsg += fmt.Sprintf(": %s", structuredResponse.StatusInfo.Message)
+		}
 	}
 
 	return &Result{data: data, isSuccess: boolp(status200 && hasData), errMsg: fmt.Sprint(errMsg)}, nil
@@ -289,6 +309,51 @@ func accessToken(host, user, password string) string {
 	}
 
 	return data[0].(string)
+}
+
+// registerCluster make an api request to get the clusterID or register a new cluster + get the new clusterID
+func (i informer) registerCluster(clientName string) (string, error) {
+	request, err := i.fmtClusterRequest(clientName)
+	if err != nil {
+		return "", err
+	}
+	result, err := i.doRequest(request)
+	if err != nil {
+		return "", err
+	}
+
+	if result.isSuccess == nil {
+		return "", fmt.Errorf("Result of request is unknown")
+	}
+
+	if !*result.isSuccess {
+		return "", fmt.Errorf(result.errMsg)
+	}
+
+	var clusterIDUInt uint
+	apiResponse := result.data.(api.Response)
+	for _, i := range apiResponse.Data.([]interface{}) {
+		cluster, err := assertClusterModel(i)
+		if err != nil {
+			return "", err
+		}
+		clusterIDUInt = cluster.ID
+	}
+
+	return strconv.FormatUint(uint64(clusterIDUInt), 10), nil
+}
+
+func assertClusterModel(i interface{}) (*models.Cluster, error) {
+	b, err := json.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
+	var cluster models.Cluster
+	err = json.Unmarshal(b, &cluster)
+	if err != nil {
+		return nil, err
+	}
+	return &cluster, nil
 }
 
 func boolp(b bool) *bool {
