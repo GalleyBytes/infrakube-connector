@@ -40,6 +40,8 @@ type informer struct {
 	httpClient *http.Client
 	host       string
 	token      string
+	user       string
+	password   string
 	clusterID  string
 	cache      *gocache.Cache
 }
@@ -51,6 +53,8 @@ func NewInformer(dynamicClient *dynamic.DynamicClient, clientName, host, user, p
 		httpClient: &http.Client{},
 		host:       host,
 		token:      token,
+		user:       user,
+		password:   password,
 		cache:      gocache.New(10*time.Minute, 10*time.Minute),
 	}
 
@@ -224,7 +228,39 @@ func (i informer) fmtClusterRequest(clusterName string) (*http.Request, error) {
 
 }
 
-func (i informer) doRequest(request *http.Request) (*Result, error) {
+// registerCluster make an api request to get the clusterID or register a new cluster + get the new clusterID
+func (i informer) registerCluster(clientName string) (string, error) {
+	request, err := i.fmtClusterRequest(clientName)
+	if err != nil {
+		return "", err
+	}
+	result, err := i.doRequest(request)
+	if err != nil {
+		return "", err
+	}
+
+	if result.isSuccess == nil {
+		return "", fmt.Errorf("Result of request is unknown")
+	}
+
+	if !*result.isSuccess {
+		return "", fmt.Errorf(result.errMsg)
+	}
+
+	var clusterIDUInt uint
+	apiResponse := result.data.(api.Response)
+	for _, i := range apiResponse.Data.([]interface{}) {
+		cluster, err := assertClusterModel(i)
+		if err != nil {
+			return "", err
+		}
+		clusterIDUInt = cluster.ID
+	}
+
+	return strconv.FormatUint(uint64(clusterIDUInt), 10), nil
+}
+
+func (i *informer) doRequest(request *http.Request) (*Result, error) {
 	request.Header.Set("Token", i.token)
 	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	response, err := i.httpClient.Do(request)
@@ -232,6 +268,12 @@ func (i informer) doRequest(request *http.Request) (*Result, error) {
 		return nil, err
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusUnauthorized {
+		token := accessToken(i.host, i.user, i.password)
+		i.token = token
+		return i.doRequest(request)
+	}
 
 	if response.StatusCode == http.StatusNoContent {
 		return &Result{isSuccess: boolp(true)}, nil
@@ -309,38 +351,6 @@ func accessToken(host, user, password string) string {
 	}
 
 	return data[0].(string)
-}
-
-// registerCluster make an api request to get the clusterID or register a new cluster + get the new clusterID
-func (i informer) registerCluster(clientName string) (string, error) {
-	request, err := i.fmtClusterRequest(clientName)
-	if err != nil {
-		return "", err
-	}
-	result, err := i.doRequest(request)
-	if err != nil {
-		return "", err
-	}
-
-	if result.isSuccess == nil {
-		return "", fmt.Errorf("Result of request is unknown")
-	}
-
-	if !*result.isSuccess {
-		return "", fmt.Errorf(result.errMsg)
-	}
-
-	var clusterIDUInt uint
-	apiResponse := result.data.(api.Response)
-	for _, i := range apiResponse.Data.([]interface{}) {
-		cluster, err := assertClusterModel(i)
-		if err != nil {
-			return "", err
-		}
-		clusterIDUInt = cluster.ID
-	}
-
-	return strconv.FormatUint(uint64(clusterIDUInt), 10), nil
 }
 
 func assertClusterModel(i interface{}) (*models.Cluster, error) {

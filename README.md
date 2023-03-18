@@ -7,6 +7,7 @@ This is another controller that listens to tf resource events. Add and update ev
 Set up the following environment vars for the API server:
 
 ```bash
+CLIENT_NAME=foo-k8s-cluster
 TFO_API_PROTOCOL=http
 TFO_API_HOST=localhost
 TFO_API_PORT=5001
