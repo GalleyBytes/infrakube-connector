@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/tfhandler"
+	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/internal/tfhandler"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"

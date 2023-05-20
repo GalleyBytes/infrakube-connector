@@ -11,7 +11,7 @@ kind-release: build
 	kind load docker-image ${IMG}
 
 build:
-	GOOS=linux GOARCH=amd64 go build -v -installsuffix cgo -o bin/server cmd/main.go
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -o bin/ctrl main.go
 
 ghactions-release:
 	CGO_ENABLED=0 go build -v -o bin/ctrl main.go
