@@ -5,8 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/tfhandler"
-	"k8s.io/client-go/dynamic"
+	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/internal/tfhandler"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -28,12 +27,7 @@ func main() {
 	user := os.Getenv("TFO_API_LOGIN_USER")
 	password := os.Getenv("TFO_API_LOGIN_PASSWORD")
 	url := fmt.Sprintf("%s://%s:%s", proto, host, port)
-	config := kubernetesConfig(kubeconfig)
-	// client := kubernetes.NewForConfigOrDie(config)
-	dynamicClient := dynamic.NewForConfigOrDie(config)
-	tfinformer := tfhandler.NewInformer(dynamicClient, clientName, url, user, password)
-
+	tfinformer := tfhandler.NewInformer(kubernetesConfig(kubeconfig), clientName, url, user, password)
 	tfinformer.Run()
-
 	os.Exit(1) // should this be 0 instead?
 }
