@@ -27,7 +27,7 @@ var (
 
 type informer struct {
 	dynamicinformer.DynamicSharedInformerFactory
-	client *tfoapiclient.Client
+	client *tfoapiclient.ClusterClient
 	cache  *gocache.Cache
 	queue  *deque.Deque[tfv1alpha2.Terraform]
 }
