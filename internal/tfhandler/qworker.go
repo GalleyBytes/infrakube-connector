@@ -1,6 +1,7 @@
 package tfhandler
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -12,11 +13,12 @@ func (i informer) backgroundQueueWorker() {
 }
 
 func (i informer) worker() {
+	ctx := context.TODO()
 	log.Println("Queue worker started")
 	for {
 		if i.queue.Len() == 0 {
 			log.Println("No queue events found")
-			time.Sleep(30 * time.Second)
+			time.Sleep(3 * time.Second)
 			continue
 		}
 
@@ -28,13 +30,13 @@ func (i informer) worker() {
 			continue
 		}
 
-		request, err := i.clusterResourceRequest("GET", "resource-poll", tf)
+		result, err := i.client.ResourcePoll().Read(ctx, &tf)
 		if err != nil {
-			i.queue.PushBack(tf)
+			log.Println(result)
 			continue
 		}
 
-		log.Printf("Checking with API server for data: %+v", request.URL)
+		log.Printf("Checking with API server for data: %+v", result)
 
 		// Make an API call to check if resources need to be pulled from the hub
 		// The API should be responsible for correctly storing and naming resources

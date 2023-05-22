@@ -15,9 +15,25 @@ import (
 	tfv1alpha2 "github.com/isaaguilar/terraform-operator/pkg/apis/tf/v1alpha2"
 )
 
+type CRUDInterface interface {
+	Create(context.Context, any) (*Result, error)
+	Read(context.Context, any) (*Result, error)
+	Update(context.Context, any) (*Result, error)
+	Delete(context.Context, any) (*Result, error)
+}
+
+type CRUDClient struct {
+	Client
+	url string
+}
+
+func NewCRUDResource(client Client, url string) CRUDClient {
+	return CRUDClient{Client: client, url: url}
+}
+
 type Result struct {
 	Data      interface{}
-	IsSuccess *bool
+	IsSuccess bool
 	ErrMsg    string
 }
 
@@ -34,143 +50,157 @@ type httpHandler struct {
 	config config
 }
 
-type tfoApiClientset struct {
+type clientset struct {
 	httpHandler
 }
-type Client struct {
-	httpHandler
-	clientID string
-	// httpClient *http.Client
-	// request *http.Request
-}
-type eventClient struct {
-	httpHandler
-	url string
-}
-type eventOutput struct {
-	Result
-}
-type resourcePollClient struct{}
-type resourcePollOutput struct{}
 
-func NewTfoApiClientset(host, username, password string) (*tfoApiClientset, error) {
-	handler := httpHandler{
+func NewClientset(host, username, password string) (*clientset, error) {
+
+	tfoapiClientset := clientset{httpHandler: httpHandler{
 		Client: http.Client{},
 		config: config{
 			Host:     host,
 			Username: username,
 			Password: password,
 		},
+	},
 	}
-
-	err := handler.requestAccessToken()
+	err := tfoapiClientset.authenticate()
 	if err != nil {
 		return nil, err
 	}
 
-	return &tfoApiClientset{handler}, nil
+	return &tfoapiClientset, nil
 }
 
-func (c *tfoApiClientset) Cluster(clientName string) *Client {
-	clientID, err := c.httpHandler.getClientID(clientName)
+func (c *clientset) UnauthenticatedClient() *Client {
+	c.httpHandler.config.Token = ""
+	return &Client{
+		clientset: *c,
+	}
+}
+
+func (c *clientset) Cluster(clientName string) *Client {
+	clientID, err := c.getClientID(clientName)
 	if err != nil {
 		log.Print(err)
 	}
 
 	return &Client{
-		httpHandler: c.httpHandler,
-		clientID:    clientID,
+		clientset: *c,
+		clientID:  clientID,
 	}
 }
 
-func assertClusterModel(i interface{}) (*models.Cluster, error) {
-	b, err := json.Marshal(i)
+func (c *clientset) authenticate() error {
+	result, err := c.UnauthenticatedClient().AccessToken().Create(context.TODO(), map[string]any{
+		"user":     c.config.Username,
+		"password": c.config.Password,
+	})
+
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var cluster models.Cluster
-	err = json.Unmarshal(b, &cluster)
-	if err != nil {
-		return nil, err
+	if !result.IsSuccess {
+		return fmt.Errorf(result.ErrMsg)
 	}
-	return &cluster, nil
-}
-func (c Client) Event() eventClient {
-	return eventClient{
-		httpHandler: c.httpHandler,
-		url:         fmt.Sprintf("%s/api/v1/cluster/%s/event", c.httpHandler.config.Host, c.clientID),
+
+	data := result.Data.(api.Response).Data.([]any)
+	if len(data) != 1 {
+		return fmt.Errorf("expected 1 result in response to api server but got %d", len(data))
 	}
+
+	token, ok := data[0].(string)
+	if !ok {
+		return fmt.Errorf("token expected as string but was %T", data[0])
+	}
+	c.httpHandler.config.Token = token
+	return nil
 }
 
-func (c eventClient) Put(ctx context.Context, tf *tfv1alpha2.Terraform) (*eventOutput, error) {
+type Client struct {
+	clientset
+	clientID string
+}
 
-	jsonData, err := json.Marshal(tf)
+func (c Client) AccessToken() CRUDClient {
+	return NewCRUDResource(c, fmt.Sprintf("%s/login", c.httpHandler.config.Host))
+}
+
+func (c Client) Event() CRUDClient {
+	return NewCRUDResource(c, fmt.Sprintf("%s/api/v1/cluster/%s/event", c.httpHandler.config.Host, c.clientID))
+	// return c
+}
+func (c Client) ResourcePoll() CRUDClient {
+	return NewCRUDResource(c, fmt.Sprintf("%s/api/v1/cluster/%s/resource-poll", c.httpHandler.config.Host, c.clientID))
+}
+
+func (c CRUDClient) Update(ctx context.Context, data any) (*Result, error) {
+
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("ERROR marshaling added tf: %s", err)
 	}
-	// url := ""
 	request, err := http.NewRequest("PUT", c.url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("ERROR setting up request to add resource: %s", err)
 	}
 
-	result, err := c.httpHandler.do(request)
-	return &eventOutput{*result}, err
+	return c.clientset.do(request)
+
 }
-func (c eventClient) Post(ctx context.Context, tf *tfv1alpha2.Terraform) (*eventOutput, error) {
-	jsonData, err := json.Marshal(tf)
+func (c CRUDClient) Create(ctx context.Context, data any) (*Result, error) {
+	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("ERROR marshaling added tf: %s", err)
 	}
-	// url := ""
-	request, err := http.NewRequest("PUT", c.url, bytes.NewBuffer(jsonData))
+	request, err := http.NewRequest("POST", c.url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("ERROR setting up request to add resource: %s", err)
 	}
-
-	result, err := c.httpHandler.do(request)
-	return &eventOutput{*result}, err
-
-}
-func (c eventClient) Delete() (any, error) { return nil, nil }
-func (c eventClient) Get() (any, error)    { return nil, nil }
-
-func (c Client) ResourcePoll() resourcePollClient {
-	return resourcePollClient{}
-}
-func (c resourcePollClient) Get() (resourcePollOutput, error) {
-	return resourcePollOutput{}, nil
-}
-func (c resourcePollClient) Put() (any, error)    { return nil, nil }
-func (c resourcePollClient) Post() (any, error)   { return nil, nil }
-func (c resourcePollClient) Delete() (any, error) { return nil, nil }
-
-func testmakesomecalls(a, b, c string) {
-	tfoclient, _ := NewTfoApiClientset(a, b, c)
-
-	// tfoclient.Cluster("").Event().Post()
-	tfoclient.Cluster("").ResourcePoll().Get()
+	return c.clientset.do(request)
 }
 
-func (h *httpHandler) do(request *http.Request) (*Result, error) {
-	request.Header.Set("Token", h.config.Token)
+func (c CRUDClient) Delete(ctx context.Context, tf *tfv1alpha2.Terraform) (*Result, error) {
+	return nil, nil
+}
+
+// func (c CRUDClient) Get() (any, error)    { return nil, nil }
+
+func (c CRUDClient) Read(ctx context.Context, data any) (*Result, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("ERROR marshaling added tf: %s", err)
+	}
+	request, err := http.NewRequest("GET", c.url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("ERROR setting up request to add resource: %s", err)
+	}
+	return c.clientset.do(request)
+
+}
+
+func (t *clientset) do(request *http.Request) (*Result, error) {
+	if t.config.Token != "" {
+		request.Header.Set("Token", t.config.Token)
+	}
 	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
-	response, err := h.Do(request)
+	response, err := t.Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusUnauthorized {
-		err := h.requestAccessToken()
+		err := t.authenticate()
 		if err != nil {
 			return nil, err
 		}
-		return h.do(request)
+		return t.do(request)
 	}
 
 	if response.StatusCode == http.StatusNoContent {
-		return &Result{IsSuccess: boolp(true)}, nil
+		return &Result{IsSuccess: true}, nil
 	}
 
 	var data interface{}
@@ -199,79 +229,24 @@ func (h *httpHandler) do(request *http.Request) (*Result, error) {
 		}
 	}
 
-	return &Result{Data: data, IsSuccess: boolp(status200 && hasData), ErrMsg: fmt.Sprint(errMsg)}, nil
+	return &Result{Data: data, IsSuccess: status200 && hasData, ErrMsg: fmt.Sprint(errMsg)}, nil
 }
 
-func boolp(b bool) *bool { return &b }
-
-func (h *httpHandler) requestAccessToken() error {
-
-	url := fmt.Sprintf("%s/login", h.config.Host)
-	jsonData, err := json.Marshal(map[string]any{
-		"user":     h.config.Username,
-		"password": h.config.Password,
-	})
-	if err != nil {
-		return err
-	}
-	request, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set("Content-Type", "application/json; charset=UTF-8")
-	response, err := h.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != 200 {
-		log.Panicf("request to %s returned a %d", request.URL, response.StatusCode)
-	}
-
-	responseBody, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return err
-	}
-
-	structuredResponse := api.Response{}
-	err = json.Unmarshal(responseBody, &structuredResponse)
-	if err != nil {
-		return err
-	}
-	data := structuredResponse.Data.([]any)
-	if len(data) != 1 {
-		log.Panicf("Expected 1 result in response to api server but got %d", len(data))
-	}
-
-	token, ok := data[0].(string)
-	if !ok {
-		return fmt.Errorf("token expected as string but was %T", data[0])
-	}
-	h.config.Token = token
-	return nil
-}
-
-func (h httpHandler) getClientID(clientName string) (string, error) {
+func (c clientset) getClientID(clientName string) (string, error) {
 
 	jsonData := []byte(fmt.Sprintf(`{"cluster_name":"%s"}`, clientName))
-	url := fmt.Sprintf("%s/api/v1/cluster", h.config.Host)
+	url := fmt.Sprintf("%s/api/v1/cluster", c.config.Host)
 	request, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return "", fmt.Errorf("ERROR setting up request to get client id: %s", err)
 	}
 
-	result, err := h.do(request)
+	result, err := c.do(request)
 	if err != nil {
 		return "", err
 	}
 
-	if result.IsSuccess == nil {
-		return "", fmt.Errorf("Result of request is unknown")
-	}
-
-	if !*result.IsSuccess {
+	if !result.IsSuccess {
 		return "", fmt.Errorf(result.ErrMsg)
 	}
 
@@ -286,5 +261,17 @@ func (h httpHandler) getClientID(clientName string) (string, error) {
 	}
 
 	return strconv.FormatUint(uint64(clusterIDUInt), 10), nil
+}
 
+func assertClusterModel(i interface{}) (*models.Cluster, error) {
+	b, err := json.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
+	var cluster models.Cluster
+	err = json.Unmarshal(b, &cluster)
+	if err != nil {
+		return nil, err
+	}
+	return &cluster, nil
 }
