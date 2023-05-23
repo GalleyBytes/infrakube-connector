@@ -39,6 +39,12 @@ func NewInformer(dynamicClient *dynamic.DynamicClient, clientName, host, user, p
 	}
 	client := clientset.Cluster(clientName)
 
+	// One time registration of the cluster. Returns success if already exist or if is created successfully.
+	err = client.Register()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	tfhandler := informer{
 		client: client,
 		cache:  gocache.New(10*time.Minute, 10*time.Minute),
