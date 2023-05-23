@@ -17,7 +17,7 @@ func (i informer) worker() {
 	log.Println("Queue worker started")
 	for {
 		if i.queue.Len() == 0 {
-			log.Println("No queue events found")
+			// log.Println("No queue events found")
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -30,7 +30,7 @@ func (i informer) worker() {
 			continue
 		}
 
-		result, err := i.client.ResourcePoll().Read(ctx, &tf)
+		result, err := i.clientset.Resource(string(tf.UID)).Poll().Read(ctx, &tf)
 		if err != nil {
 			log.Println(result)
 			continue
@@ -56,7 +56,15 @@ func (i informer) worker() {
 			- quick to use
 			Cons:
 			- data will need to persist ie another storage layer (or more usage of current storage layer?)
-			-
+
+			Option #2 use labels on resources
+			Pros:
+			- simpler to implement
+			- k8s native lookups
+			- no extra data layer
+			- **no need to keep track of uid name**
+
+
 
 
 		*/

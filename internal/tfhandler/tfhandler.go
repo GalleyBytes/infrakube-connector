@@ -27,9 +27,10 @@ var (
 
 type informer struct {
 	dynamicinformer.DynamicSharedInformerFactory
-	client *tfoapiclient.ClusterClient
-	cache  *gocache.Cache
-	queue  *deque.Deque[tfv1alpha2.Terraform]
+	clientset   *tfoapiclient.Clientset
+	cache       *gocache.Cache
+	queue       *deque.Deque[tfv1alpha2.Terraform]
+	clusterName string
 }
 
 func NewInformer(dynamicClient *dynamic.DynamicClient, clientName, host, user, password string) informer {
@@ -37,18 +38,18 @@ func NewInformer(dynamicClient *dynamic.DynamicClient, clientName, host, user, p
 	if err != nil {
 		log.Fatal(err)
 	}
-	client := clientset.Cluster(clientName)
 
 	// One time registration of the cluster. Returns success if already exist or if is created successfully.
-	err = client.Register()
+	err = clientset.Cluster(clientName).Register()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	tfhandler := informer{
-		client: client,
-		cache:  gocache.New(10*time.Minute, 10*time.Minute),
-		queue:  &deque.Deque[tfv1alpha2.Terraform]{},
+		clientset:   clientset,
+		clusterName: clientName,
+		cache:       gocache.New(10*time.Minute, 10*time.Minute),
+		queue:       &deque.Deque[tfv1alpha2.Terraform]{},
 	}
 
 	handler := cache.ResourceEventHandlerFuncs{
@@ -80,7 +81,7 @@ func (i informer) addEvent(obj interface{}) {
 	}
 	log.Printf("Add event observed '%s'", tf.Name)
 
-	postResult, err := i.client.Event().Create(context.TODO(), tf)
+	postResult, err := i.clientset.Cluster(i.clusterName).Event().Create(context.TODO(), tf)
 	if err != nil {
 		log.Println(err.Error())
 		return
@@ -95,14 +96,14 @@ func (i informer) addEvent(obj interface{}) {
 		return
 	}
 
-	putResult, err := i.client.Event().Update(context.TODO(), tf)
+	putResult, err := i.clientset.Cluster(i.clusterName).Event().Update(context.TODO(), tf)
 	if err != nil {
 		log.Printf("ERROR in request to add resource: %s", err)
 		return
 	}
 
 	if !putResult.IsSuccess {
-		log.Println(putResult.ErrMsg)
+		log.Printf("ERROR %s", putResult.ErrMsg)
 		return
 	}
 
@@ -127,14 +128,14 @@ func (i informer) updateEvent(old, new interface{}) {
 		log.Println("Observed update event: ", tfnew.Name)
 	}
 
-	putResult, err := i.client.Event().Update(context.TODO(), tfnew)
+	putResult, err := i.clientset.Cluster(i.clusterName).Event().Update(context.TODO(), tfnew)
 	if err != nil {
 		log.Printf("ERROR in request to add resource: %s", err)
 		return
 	}
 
 	if !putResult.IsSuccess {
-		log.Println(putResult.ErrMsg)
+		log.Printf("ERROR %s", putResult.ErrMsg)
 		return
 	}
 }

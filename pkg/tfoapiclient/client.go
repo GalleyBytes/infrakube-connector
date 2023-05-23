@@ -19,13 +19,18 @@ type CRUDInterface interface {
 }
 
 type crudResource struct {
-	clientset
+	Clientset
 	url string
 }
 
 type ClusterClient struct {
-	clientset
+	Clientset
 	clientName string
+}
+
+type ResourceClient struct {
+	Clientset
+	resourceUID string
 }
 
 type result struct {
@@ -42,13 +47,13 @@ type config struct {
 	ClientName string
 }
 
-type clientset struct {
+type Clientset struct {
 	http.Client
 	config config
 }
 
-func NewClientset(host, username, password string) (*clientset, error) {
-	tfoapiClientset := clientset{
+func NewClientset(host, username, password string) (*Clientset, error) {
+	tfoapiClientset := Clientset{
 		Client: http.Client{},
 		config: config{
 			Host:     host,
@@ -63,19 +68,26 @@ func NewClientset(host, username, password string) (*clientset, error) {
 	return &tfoapiClientset, nil
 }
 
-func (c *clientset) UnauthenticatedClient() *clientset {
+func (c *Clientset) UnauthenticatedClient() *Clientset {
 	c.config.Token = ""
 	return c
 }
 
-func (c *clientset) Cluster(clientName string) *ClusterClient {
+func (c *Clientset) Cluster(clientName string) *ClusterClient {
 	return &ClusterClient{
-		clientset:  *c,
+		Clientset:  *c,
 		clientName: clientName,
 	}
 }
 
-func (c *clientset) do(method, url string, bodyData any) (*result, error) {
+func (c *Clientset) Resource(resourceUID string) *ResourceClient {
+	return &ResourceClient{
+		Clientset:   *c,
+		resourceUID: resourceUID,
+	}
+}
+
+func (c *Clientset) do(method, url string, bodyData any) (*result, error) {
 	jsonData, err := json.Marshal(bodyData)
 	if err != nil {
 		return nil, fmt.Errorf("ERROR marshaling added tf: %s", err)
@@ -135,7 +147,7 @@ func (c *clientset) do(method, url string, bodyData any) (*result, error) {
 	return &result{Data: data, IsSuccess: status200 && hasData, ErrMsg: fmt.Sprint(errMsg)}, nil
 }
 
-func (c *clientset) authenticate() error {
+func (c *Clientset) authenticate() error {
 	result, err := c.UnauthenticatedClient().AccessToken().Create(context.TODO(), map[string]any{
 		"user":     c.config.Username,
 		"password": c.config.Password,
@@ -161,14 +173,16 @@ func (c *clientset) authenticate() error {
 	return nil
 }
 
-func (c clientset) AccessToken() crudResource {
+func (c Clientset) AccessToken() crudResource {
 	return newCRUDResource(c, fmt.Sprintf("%s/login", c.config.Host))
 }
 
 func (c ClusterClient) Register() error {
-	result, err := c.clientset.do("POST", fmt.Sprintf("%s/api/v1/cluster", c.config.Host), struct {
+	result, err := c.Clientset.do("POST", fmt.Sprintf("%s/api/v1/cluster", c.config.Host), struct {
 		ClusterName string `json:"cluster_name"`
-	}{c.clientName})
+	}{
+		ClusterName: c.clientName,
+	})
 	if err != nil {
 		return err
 	}
@@ -179,29 +193,29 @@ func (c ClusterClient) Register() error {
 }
 
 func (c ClusterClient) Event() crudResource {
-	return newCRUDResource(c.clientset, fmt.Sprintf("%s/api/v1/cluster/%s/event", c.config.Host, c.clientName))
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/event", c.config.Host, c.clientName))
 }
 
-func (c ClusterClient) ResourcePoll() crudResource {
-	return newCRUDResource(c.clientset, fmt.Sprintf("%s/api/v1/cluster/%s/resource-poll", c.config.Host, c.clientName))
+func (c ResourceClient) Poll() crudResource {
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/resource/%s/poll", c.config.Host, c.resourceUID))
 }
 
-func newCRUDResource(c clientset, url string) crudResource {
-	return crudResource{clientset: c, url: url}
+func newCRUDResource(c Clientset, url string) crudResource {
+	return crudResource{Clientset: c, url: url}
 }
 
 func (c crudResource) Create(ctx context.Context, data any) (*result, error) {
-	return c.clientset.do("POST", c.url, data)
+	return c.Clientset.do("POST", c.url, data)
 }
 
 func (c crudResource) Read(ctx context.Context, data any) (*result, error) {
-	return c.clientset.do("GET", c.url, data)
+	return c.Clientset.do("GET", c.url, data)
 }
 
 func (c crudResource) Update(ctx context.Context, data any) (*result, error) {
-	return c.clientset.do("PUT", c.url, data)
+	return c.Clientset.do("PUT", c.url, data)
 }
 
 func (c crudResource) Delete(ctx context.Context, data any) (*result, error) {
-	return c.clientset.do("DELETE", c.url, data)
+	return c.Clientset.do("DELETE", c.url, data)
 }
