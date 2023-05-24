@@ -3,6 +3,7 @@ package tfhandler
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	tfv1alpha2 "github.com/isaaguilar/terraform-operator/pkg/apis/tf/v1alpha2"
@@ -23,20 +24,29 @@ func (i informer) worker() {
 		}
 
 		tf := i.queue.PopFront()
-
-		log.Printf("Will do work with %s/%s", tf.Namespace, tf.Name)
-
 		if !shouldPoll(tf) {
 			continue
 		}
 
-		result, err := i.clientset.Resource(string(tf.UID)).Poll().Read(ctx, &tf)
+		log.Printf("Checking for resources that belong to %s/%s", tf.Namespace, tf.Name)
+		result, err := i.clientset.Resource(tf.Name).Poll().Read(ctx, &tf)
 		if err != nil {
-			log.Println(result)
+			log.Println(err)
 			continue
 		}
 
-		log.Printf("Checking with API server for data: %+v", result)
+		if !result.IsSuccess {
+			log.Printf("ERROR unsuccessful response when checking resources for '%s': %s", tf.Name, result.ErrMsg)
+			i.requeueAfter(tf, 30*time.Second)
+			continue
+		}
+
+		if strings.Contains(result.Data.StatusInfo.Message, "workflow has not completed") {
+			i.requeueAfter(tf, 30*time.Second)
+			continue
+		}
+
+		log.Printf("Result for %s/%s data: %+v", tf.Namespace, tf.Name, result)
 
 		// Make an API call to check if resources need to be pulled from the hub
 		// The API should be responsible for correctly storing and naming resources
@@ -72,9 +82,12 @@ func (i informer) worker() {
 }
 
 func shouldPoll(tf tfv1alpha2.Terraform) bool {
-	if tf.Spec.OutputsSecret != "" {
-		return false
-	}
+	return tf.Spec.OutputsSecret != ""
+}
 
-	return true
+func (i informer) requeueAfter(tf tfv1alpha2.Terraform, t time.Duration) {
+	go func() {
+		time.Sleep(t)
+		i.queue.PushBack(tf)
+	}()
 }

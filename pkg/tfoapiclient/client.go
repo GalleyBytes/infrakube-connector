@@ -34,7 +34,7 @@ type ResourceClient struct {
 }
 
 type result struct {
-	Data      interface{}
+	Data      api.Response
 	IsSuccess bool
 	ErrMsg    string
 }
@@ -118,7 +118,6 @@ func (c *Clientset) do(method, url string, bodyData any) (*result, error) {
 		return &result{IsSuccess: true}, nil
 	}
 
-	var data interface{}
 	var hasData bool = true
 	var status200 bool = true
 	var errMsg string
@@ -138,13 +137,12 @@ func (c *Clientset) do(method, url string, bodyData any) (*result, error) {
 		status200 = false
 		errMsg += fmt.Sprintf(" with the following response in the body: %s", string(responseBody))
 	} else {
-		data = structuredResponse
 		if !status200 {
 			errMsg += fmt.Sprintf(": %s", structuredResponse.StatusInfo.Message)
 		}
 	}
 
-	return &result{Data: data, IsSuccess: status200 && hasData, ErrMsg: fmt.Sprint(errMsg)}, nil
+	return &result{Data: structuredResponse, IsSuccess: status200 && hasData, ErrMsg: fmt.Sprint(errMsg)}, nil
 }
 
 func (c *Clientset) authenticate() error {
@@ -160,7 +158,7 @@ func (c *Clientset) authenticate() error {
 		return fmt.Errorf(result.ErrMsg)
 	}
 
-	data := result.Data.(api.Response).Data.([]any)
+	data := result.Data.Data.([]any)
 	if len(data) != 1 {
 		return fmt.Errorf("expected 1 result in response to api server but got %d", len(data))
 	}

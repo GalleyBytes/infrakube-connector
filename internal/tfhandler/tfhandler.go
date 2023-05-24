@@ -108,7 +108,6 @@ func (i informer) addEvent(obj interface{}) {
 	}
 
 	i.queue.PushBack(*tf)
-
 }
 
 func (i informer) updateEvent(old, new interface{}) {
@@ -138,6 +137,8 @@ func (i informer) updateEvent(old, new interface{}) {
 		log.Printf("ERROR %s", putResult.ErrMsg)
 		return
 	}
+
+	i.queue.PushBack(*tfnew)
 }
 
 func (i informer) deleteEvent(obj interface{}) {
