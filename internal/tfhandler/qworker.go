@@ -116,22 +116,25 @@ func (i informer) createOrUpdateResource(b []byte, namespace string) {
 	} else {
 		dynamicClient = namespaceableResourceClient
 	}
+	obj.SetNamespace(namespace)
 	obj.SetResourceVersion("")
+	obj.SetUID("")
+	obj.SetOwnerReferences([]metav1.OwnerReference{}) // TODO fix to original tf
 	_, err = dynamicClient.Create(i.ctx, &obj, metav1.CreateOptions{})
 	if err != nil {
 		if kerrors.IsAlreadyExists(err) {
-			log.Println("Resource already exists. Will update resource instead.")
+			log.Printf("%s '%s/%s' already exists. Updating resource", gvk.Kind, namespace, obj.GetName())
 			_, err := dynamicClient.Update(i.ctx, &obj, metav1.UpdateOptions{})
 			if err != nil {
-				log.Println("ERROR: could not update resource:", err)
+				log.Printf("ERROR: could not update %s '%s/%s': %s", gvk.Kind, namespace, obj.GetName(), err)
 				return
 			}
-			log.Println("Resource has been updated")
+			log.Printf("%s '%s/%s' has been updated", gvk.Kind, namespace, obj.GetName())
 		} else {
-			log.Println("ERROR: could not create resource: ", err)
+			log.Printf("ERROR: could not create %s '%s/%s': %s", gvk.Kind, namespace, obj.GetName(), err)
 		}
 	} else {
-		log.Println("Resource has been created")
+		log.Printf("%s '%s/%s' has been created", gvk.Kind, namespace, obj.GetName())
 	}
 }
 
