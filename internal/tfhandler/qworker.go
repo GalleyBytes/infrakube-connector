@@ -93,6 +93,16 @@ func (i informer) createOrUpdateResource(b []byte, namespace string) {
 		log.Println("ERROR: could not unmarshal resource:", err)
 		return
 	}
+
+	// Rename the resource back to the original name if the original-name key exists. The reason the name
+	// is changed is to prevent a "hub" cluster from having naming conflicts with othe resources that may
+	// request the same name.
+	labels := obj.GetLabels()
+	key := "tfo.galleybytes.com/original-name"
+	if name, found := labels[key]; found {
+		obj.SetName(name)
+	}
+
 	gvk := obj.GetObjectKind().GroupVersionKind()
 
 	var dynamicClient dynamic.ResourceInterface
