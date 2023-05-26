@@ -49,17 +49,17 @@ MainLoop:
 			continue
 		}
 
-		if !result.IsSuccess {
-			log.Printf("ERROR '%s' poll response unsuccessful: %s", name, result.ErrMsg)
-			if strings.Contains(result.ErrMsg, fmt.Sprintf(`terraforms.tf.isaaguilar.com "%s" not found`, name)) {
-				// Do not requeue since this resource is not even registered with the API
-				continue
-			}
+		if strings.Contains(result.Data.StatusInfo.Message, "workflow has not completed") {
 			i.requeueAfter(tf, 30*time.Second)
 			continue
 		}
 
-		if strings.Contains(result.Data.StatusInfo.Message, "workflow has not completed") {
+		if !result.IsSuccess {
+			log.Printf("INFO '%s' poll request was successful but %s", name, result.ErrMsg)
+			if strings.Contains(result.ErrMsg, fmt.Sprintf(`terraforms.tf.isaaguilar.com "%s" not found`, name)) {
+				// Do not requeue since this resource is not even registered with the API
+				continue
+			}
 			i.requeueAfter(tf, 30*time.Second)
 			continue
 		}

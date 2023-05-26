@@ -144,6 +144,11 @@ func (c *Clientset) do(method, url string, bodyData any) (*result, error) {
 		if !status200 {
 			errMsg += fmt.Sprintf(": %s", structuredResponse.StatusInfo.Message)
 		}
+		if status200 && structuredResponse.Data == nil {
+			hasData = false
+			errMsg += fmt.Sprintf("response has no data. %s", structuredResponse.StatusInfo.Message)
+		}
+
 	}
 
 	return &result{Data: structuredResponse, IsSuccess: status200 && hasData, ErrMsg: fmt.Sprint(errMsg)}, nil
