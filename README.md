@@ -35,7 +35,7 @@ metadata:
  name: tforc
 rules:
 - apiGroups:
-  - tf.isaaguilar.com
+  - tf.galleybytes.com
   resources:
   - terraforms
   verbs:

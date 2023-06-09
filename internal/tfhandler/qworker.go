@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	tfv1alpha2 "github.com/isaaguilar/terraform-operator/pkg/apis/tf/v1alpha2"
+	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -56,7 +56,7 @@ MainLoop:
 
 		if !result.IsSuccess {
 			log.Printf("INFO '%s' poll request was successful but %s", name, result.ErrMsg)
-			if strings.Contains(result.ErrMsg, fmt.Sprintf(`terraforms.tf.isaaguilar.com "%s" not found`, name)) {
+			if strings.Contains(result.ErrMsg, fmt.Sprintf(`terraforms.tf.galleybytes.com "%s" not found`, name)) {
 				// Do not requeue since this resource is not even registered with the API
 				continue
 			}
@@ -173,11 +173,11 @@ func getAPIResourceForGVK(gvk schema.GroupVersionKind, config *rest.Config) (met
 	return res, nil
 }
 
-func shouldPoll(tf tfv1alpha2.Terraform) bool {
+func shouldPoll(tf tfv1beta1.Terraform) bool {
 	return tf.Spec.OutputsSecret != ""
 }
 
-func (i informer) requeueAfter(tf tfv1alpha2.Terraform, t time.Duration) {
+func (i informer) requeueAfter(tf tfv1beta1.Terraform, t time.Duration) {
 	go func() {
 		time.Sleep(t)
 		i.queue.PushBack(tf)
