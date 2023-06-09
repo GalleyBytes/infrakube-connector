@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/tfoapiclient"
+	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
 	"github.com/gammazero/deque"
-	tfv1alpha2 "github.com/isaaguilar/terraform-operator/pkg/apis/tf/v1alpha2"
 	gocache "github.com/patrickmn/go-cache"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -20,8 +20,8 @@ import (
 
 var (
 	terraformResource = schema.GroupVersionResource{
-		Group:    tfv1alpha2.SchemeGroupVersion.Group,
-		Version:  tfv1alpha2.SchemeGroupVersion.Version,
+		Group:    tfv1beta1.SchemeGroupVersion.Group,
+		Version:  tfv1beta1.SchemeGroupVersion.Version,
 		Resource: "terraforms",
 	}
 )
@@ -32,7 +32,7 @@ type informer struct {
 	config      *rest.Config
 	clientset   *tfoapiclient.Clientset
 	cache       *gocache.Cache
-	queue       *deque.Deque[tfv1alpha2.Terraform]
+	queue       *deque.Deque[tfv1beta1.Terraform]
 	clusterName string
 }
 
@@ -56,7 +56,7 @@ func NewInformer(config *rest.Config, clientName, host, user, password string) i
 		clientset:   clientset,
 		clusterName: clientName,
 		cache:       gocache.New(10*time.Minute, 10*time.Minute),
-		queue:       &deque.Deque[tfv1alpha2.Terraform]{},
+		queue:       &deque.Deque[tfv1beta1.Terraform]{},
 	}
 
 	handler := cache.ResourceEventHandlerFuncs{
@@ -158,12 +158,12 @@ func (i informer) deleteEvent(obj interface{}) {
 	log.Println("delete event")
 }
 
-func assertTf(obj interface{}) (*tfv1alpha2.Terraform, error) {
+func assertTf(obj interface{}) (*tfv1beta1.Terraform, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return nil, err
 	}
-	var tf tfv1alpha2.Terraform
+	var tf tfv1beta1.Terraform
 	err = json.Unmarshal(b, &tf)
 	if err != nil {
 		return nil, err
