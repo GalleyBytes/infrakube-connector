@@ -36,3 +36,12 @@ func Pprint(o interface{}) {
 	}
 	fmt.Println(out.String())
 }
+
+func Tmpdir() string {
+	t := os.TempDir()
+	_, err := os.Stat(t)
+	if err != nil {
+		return "."
+	}
+	return t
+}

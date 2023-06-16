@@ -2,20 +2,16 @@ package tfhandler
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/util"
 	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
-	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
+	"github.com/isaaguilar/kedge"
 	"k8s.io/client-go/rest"
 )
 
@@ -38,11 +34,11 @@ MainLoop:
 		if !shouldPoll(tf) {
 			continue
 		}
-		name := string(tf.UID)
+		name := tf.Name
 		namespace := tf.Namespace
 
 		log.Printf("Checking for resources that belong to %s", name)
-		result, err := i.clientset.Resource(name).Poll().Read(ctx, &tf)
+		result, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
 		if err != nil {
 			log.Println(err)
 			i.requeueAfter(tf, 30*time.Second)
@@ -78,102 +74,48 @@ MainLoop:
 				i.requeueAfter(tf, 30*time.Second)
 				continue MainLoop
 			}
+			_, err := base64.StdEncoding.DecodeString(item.(string))
+			if err != nil {
+				log.Printf("ERROR '%s' response item cannot be decoded", name)
+				i.requeueAfter(tf, 30*time.Second)
+				continue MainLoop
+			}
 		}
+
 		for _, item := range list {
-			i.createOrUpdateResource([]byte(item.(string)), namespace)
+			b, _ := base64.StdEncoding.DecodeString(item.(string))
+			applyRawManifest(ctx, kedge.KubernetesConfig(os.Getenv("KUBECONFIG")), b, namespace)
+
 		}
 		log.Printf("Done handling '%s'", name)
 	}
 }
 
-func (i informer) createOrUpdateResource(b []byte, namespace string) {
-	obj := unstructured.Unstructured{}
-	err := json.Unmarshal(b, &obj)
+func applyRawManifest(c context.Context, config *rest.Config, raw []byte, namespace string) error {
+	tempfile, err := os.CreateTemp(util.Tmpdir(), "*manifest")
 	if err != nil {
-		log.Println("ERROR: could not unmarshal resource:", err)
-		return
+		return err
 	}
-	gvk := obj.GetObjectKind().GroupVersionKind()
-	var dynamicClient dynamic.ResourceInterface
-	namespaceableResourceClient, isNamespaced, err := getDynamicClientOnKind(gvk.Version, gvk.Kind, i.config)
-	if err != nil {
-		log.Println("ERROR: could not get a client to handle resource:", err)
-		return
-	}
-	if isNamespaced {
-		dynamicClient = namespaceableResourceClient.Namespace(namespace)
-	} else {
-		dynamicClient = namespaceableResourceClient
-	}
-	obj.SetNamespace(namespace)
-	obj.SetResourceVersion("")
-	obj.SetUID("")
-	obj.SetOwnerReferences([]metav1.OwnerReference{}) // TODO fix to original tf
-	_, err = dynamicClient.Create(i.ctx, &obj, metav1.CreateOptions{})
-	if err != nil {
-		if kerrors.IsAlreadyExists(err) {
-			log.Printf("%s '%s/%s' already exists. Updating resource", gvk.Kind, namespace, obj.GetName())
-			_, err := dynamicClient.Update(i.ctx, &obj, metav1.UpdateOptions{})
-			if err != nil {
-				log.Printf("ERROR: could not update %s '%s/%s': %s", gvk.Kind, namespace, obj.GetName(), err)
-				return
-			}
-			log.Printf("%s '%s/%s' has been updated", gvk.Kind, namespace, obj.GetName())
-		} else {
-			log.Printf("ERROR: could not create %s '%s/%s': %s", gvk.Kind, namespace, obj.GetName(), err)
-		}
-	} else {
-		log.Printf("%s '%s/%s' has been created", gvk.Kind, namespace, obj.GetName())
-	}
-}
+	defer os.Remove(tempfile.Name())
+	fmt.Println("Created file", tempfile.Name())
 
-// getDynamicClientOnUnstructured returns a dynamic client on an Unstructured type. This client can be further namespaced.
-func getDynamicClientOnKind(apiversion string, kind string, config *rest.Config) (dynamic.NamespaceableResourceInterface, bool, error) {
-	gvk := schema.FromAPIVersionAndKind(apiversion, kind)
-	apiRes, err := getAPIResourceForGVK(gvk, config)
+	err = os.WriteFile(tempfile.Name(), raw, 0755)
 	if err != nil {
-		log.Printf("[ERROR] unable to get apiresource from unstructured: %s , error %s", gvk.String(), err)
-		return nil, false, errors.Wrapf(err, "unable to get apiresource from unstructured: %s", gvk.String())
+		return fmt.Errorf("whoa! error here: %s", err)
 	}
-	gvr := schema.GroupVersionResource{
-		Group:    apiRes.Group,
-		Version:  apiRes.Version,
-		Resource: apiRes.Name,
-	}
-	intf, err := dynamic.NewForConfig(config)
-	if err != nil {
-		log.Printf("[ERROR] unable to get dynamic client %s", err)
-		return nil, false, err
-	}
-	res := intf.Resource(gvr)
-	return res, apiRes.Namespaced, nil
-}
 
-func getAPIResourceForGVK(gvk schema.GroupVersionKind, config *rest.Config) (metav1.APIResource, error) {
-	res := metav1.APIResource{}
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	err = kedge.Apply(config, tempfile.Name(), namespace, []string{})
 	if err != nil {
-		log.Printf("[ERROR] unable to create discovery client %s", err)
-		return res, err
+		return fmt.Errorf("error applying manifest: %s", err)
 	}
-	resList, err := discoveryClient.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
-	if err != nil {
-		log.Printf("[ERROR] unable to retrieve resource list for: %s , error: %s", gvk.GroupVersion().String(), err)
-		return res, err
-	}
-	for _, resource := range resList.APIResources {
-		// if a resource contains a "/" it's referencing a subresource. we don't support suberesource for now.
-		if resource.Kind == gvk.Kind && !strings.Contains(resource.Name, "/") {
-			res = resource
-			res.Group = gvk.Group
-			res.Version = gvk.Version
-			break
-		}
-	}
-	return res, nil
+	// Should this call block until the vcluster is up and running?
+	return nil
 }
 
 func shouldPoll(tf tfv1beta1.Terraform) bool {
+	if true {
+		return true
+	}
 	return tf.Spec.OutputsSecret != ""
 }
 
