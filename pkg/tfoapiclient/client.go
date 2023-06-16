@@ -203,6 +203,10 @@ func (c ResourceClient) Poll() crudResource {
 	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/resource/%s/poll", c.config.Host, c.resourceUID))
 }
 
+func (c ClusterClient) SyncDependencies() crudResource {
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/sync-dependencies", c.config.Host, c.clientName))
+}
+
 func newCRUDResource(c Clientset, url string) crudResource {
 	return crudResource{Clientset: c, url: url}
 }
