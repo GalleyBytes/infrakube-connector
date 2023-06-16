@@ -199,8 +199,8 @@ func (c ClusterClient) Event() crudResource {
 	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/event", c.config.Host, c.clientName))
 }
 
-func (c ResourceClient) Poll() crudResource {
-	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/resource/%s/poll", c.config.Host, c.resourceUID))
+func (c ClusterClient) Poll(namespace, name string) crudResource {
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/resource/%s/%s/poll", c.config.Host, c.clientName, namespace, name))
 }
 
 func (c ClusterClient) SyncDependencies() crudResource {
