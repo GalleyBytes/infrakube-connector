@@ -38,7 +38,10 @@ require (
 	gorm.io/gorm v1.23.8 // indirect
 )
 
+// replace github.com/isaaguilar/kedge v0.0.0-20230616161426-17e452296bfc => /tmp/vgo
+
 require (
+	github.com/isaaguilar/kedge v0.0.0-20230616234728-9511683dc2ab
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
 	github.com/gammazero/deque v0.2.1
@@ -52,7 +55,6 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
-	github.com/isaaguilar/kedge v0.0.0-20230616161426-17e452296bfc
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
