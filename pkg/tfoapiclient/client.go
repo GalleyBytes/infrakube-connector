@@ -3,6 +3,7 @@ package tfoapiclient
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -52,9 +53,13 @@ type Clientset struct {
 	config config
 }
 
-func NewClientset(host, username, password string) (*Clientset, error) {
+func NewClientset(host, username, password string, insecureSkipVerify bool) (*Clientset, error) {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: insecureSkipVerify},
+	}
+	client := http.Client{Transport: tr}
 	tfoapiClientset := Clientset{
-		Client: http.Client{},
+		Client: client,
 		config: config{
 			Host:     host,
 			Username: username,
