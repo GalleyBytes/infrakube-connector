@@ -44,10 +44,10 @@ type informer struct {
 	clusterName string
 }
 
-func NewInformer(config *rest.Config, clientName, host, user, password string) informer {
+func NewInformer(config *rest.Config, clientName, host, user, password string, insecureSkipVerify bool) informer {
 	dynamicClient := dynamic.NewForConfigOrDie(config)
 
-	clientset, err := tfoapiclient.NewClientset(host, user, password)
+	clientset, err := tfoapiclient.NewClientset(host, user, password, insecureSkipVerify)
 	if err != nil {
 		log.Fatal(err)
 	}

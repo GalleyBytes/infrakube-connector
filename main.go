@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -19,6 +20,9 @@ func kubernetesConfig(kubeconfigPath string) *rest.Config {
 }
 
 func main() {
+	var insecureSkipVerify bool
+	flag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "Allow conneting to API server without unverified HTTPS")
+	flag.Parse()
 	kubeconfig := os.Getenv("KUBECONFIG")
 	clientName := os.Getenv("CLIENT_NAME")
 	proto := os.Getenv("TFO_API_PROTOCOL")
@@ -27,7 +31,7 @@ func main() {
 	user := os.Getenv("TFO_API_LOGIN_USER")
 	password := os.Getenv("TFO_API_LOGIN_PASSWORD")
 	url := fmt.Sprintf("%s://%s:%s", proto, host, port)
-	tfinformer := tfhandler.NewInformer(kubernetesConfig(kubeconfig), clientName, url, user, password)
+	tfinformer := tfhandler.NewInformer(kubernetesConfig(kubeconfig), clientName, url, user, password, insecureSkipVerify)
 	tfinformer.Run()
 	os.Exit(1) // should this be 0 instead?
 }
