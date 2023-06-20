@@ -33,6 +33,8 @@ github.com/evanphx/json-patch v5.6.0+incompatible h1:jBYDEEiFBPxA0v50tFdvOzQQTCv
 github.com/flowstack/go-jsonschema v0.1.1/go.mod h1:yL7fNggx1o8rm9RlgXv7hTBWxdBM0rVwpMwimd3F3N0=
 github.com/galleybytes/terraform-operator v0.12.0 h1:r//jPgGl+WzNE2+LUOivCyMftRKSKkhTc4eN0fnnYoc=
 github.com/galleybytes/terraform-operator v0.12.0/go.mod h1:UBmC5dPK2dBA09AjLNW4szw5VqQ8mndXrR8Gp97GRtE=
+github.com/galleybytes/terraform-operator v0.12.1 h1:sqLZtnxlNgIl0psnBjnjwQ676P+q2NIhcoUfuGcHyYY=
+github.com/galleybytes/terraform-operator v0.12.1/go.mod h1:UBmC5dPK2dBA09AjLNW4szw5VqQ8mndXrR8Gp97GRtE=
 github.com/galleybytes/terraform-operator-api v0.0.0-20230214024810-4a6c274dda46 h1:ZqhmkGguQwHpcsy3IIPA3/tYG2GL0nmzvW4EpZSl78g=
 github.com/galleybytes/terraform-operator-api v0.0.0-20230214024810-4a6c274dda46/go.mod h1:w/KldbD8thrM5kU5SGCdgX+WSYDW4Km3Yl5zjgQqLWo=
 github.com/gammazero/deque v0.2.1 h1:qSdsbG6pgp6nL7A0+K/B7s12mcCY/5l5SIUpMOl+dC0=
@@ -111,6 +113,8 @@ github.com/imdario/mergo v0.3.16 h1:wwQJbIsHYGMUyLSPrEq1CT16AhnhNJQ51+4fdHUnCl4=
 github.com/imdario/mergo v0.3.16/go.mod h1:WBLT9ZmE3lPoWsEzCh9LPo3TiwVN+ZKEjmz+hD27ysY=
 github.com/isaaguilar/kedge v0.0.0-20230616161426-17e452296bfc h1:GXPFcjgMkJewYBpEbkbuJOjd4SX1pZ24NZABdyAEmgc=
 github.com/isaaguilar/kedge v0.0.0-20230616161426-17e452296bfc/go.mod h1:uHkKWxPNzHSAvNrJ7uOrmt/e5fZ3GU7cO5zqbQKGQfk=
+github.com/isaaguilar/kedge v0.0.0-20230616234728-9511683dc2ab h1:P5KhXXXO3zSOT472f7Jtoy4pcYsv68TJeDH+LnR3wu0=
+github.com/isaaguilar/kedge v0.0.0-20230616234728-9511683dc2ab/go.mod h1:uHkKWxPNzHSAvNrJ7uOrmt/e5fZ3GU7cO5zqbQKGQfk=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.4/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
