@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/internal/tfhandler"
+	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/tfoapiclient"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -17,6 +18,17 @@ func kubernetesConfig(kubeconfigPath string) *rest.Config {
 		log.Fatal("Failed to get config for clientset")
 	}
 	return config
+}
+
+func readFile(filename string) []byte {
+	if filename == "" {
+		return []byte{}
+	}
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		log.Panic(err)
+	}
+	return b
 }
 
 func main() {
@@ -30,8 +42,15 @@ func main() {
 	port := os.Getenv("TFO_API_PORT")
 	user := os.Getenv("TFO_API_LOGIN_USER")
 	password := os.Getenv("TFO_API_LOGIN_PASSWORD")
+	clusterManifest := readFile(os.Getenv("TFO_API_CLUSTER_MANIFEST"))
+	vClusterManifest := readFile(os.Getenv("TFO_API_VCLUSTER_MANIFEST"))
 	url := fmt.Sprintf("%s://%s:%s", proto, host, port)
-	tfinformer := tfhandler.NewInformer(kubernetesConfig(kubeconfig), clientName, url, user, password, insecureSkipVerify)
+	clientSetup := tfoapiclient.ClientSetup{
+		ClusterName:      clientName,
+		ClusterManifest:  clusterManifest,
+		VClusterManifest: vClusterManifest,
+	}
+	tfinformer := tfhandler.NewInformer(kubernetesConfig(kubeconfig), clientSetup, url, user, password, insecureSkipVerify)
 	tfinformer.Run()
 	os.Exit(1) // should this be 0 instead?
 }

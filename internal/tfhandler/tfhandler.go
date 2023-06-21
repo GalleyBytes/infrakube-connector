@@ -44,7 +44,7 @@ type informer struct {
 	clusterName string
 }
 
-func NewInformer(config *rest.Config, clientName, host, user, password string, insecureSkipVerify bool) informer {
+func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host, user, password string, insecureSkipVerify bool) informer {
 	dynamicClient := dynamic.NewForConfigOrDie(config)
 
 	clientset, err := tfoapiclient.NewClientset(host, user, password, insecureSkipVerify)
@@ -53,7 +53,7 @@ func NewInformer(config *rest.Config, clientName, host, user, password string, i
 	}
 
 	// One time registration of the cluster. Returns success if already exist or if is created successfully.
-	err = clientset.Cluster(clientName).Register()
+	err = clientset.Registration().Register(clientSetup)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func NewInformer(config *rest.Config, clientName, host, user, password string, i
 		ctx:         context.TODO(),
 		config:      config,
 		clientset:   clientset,
-		clusterName: clientName,
+		clusterName: clientSetup.ClusterName,
 		cache:       gocache.New(10*time.Minute, 10*time.Minute),
 		queue:       &deque.Deque[tfv1beta1.Terraform]{},
 	}
