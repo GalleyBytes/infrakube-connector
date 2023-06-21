@@ -29,6 +29,10 @@ type ClusterClient struct {
 	clientName string
 }
 
+type RegistrationClient struct {
+	Clientset
+}
+
 type ResourceClient struct {
 	Clientset
 	resourceUID string
@@ -51,6 +55,12 @@ type config struct {
 type Clientset struct {
 	http.Client
 	config config
+}
+
+type ClientSetup struct {
+	ClusterName      string `json:"cluster_name"`
+	ClusterManifest  []byte `json:"clusterManifest"`
+	VClusterManifest []byte `json:"vClusterManifest`
 }
 
 func NewClientset(host, username, password string, insecureSkipVerify bool) (*Clientset, error) {
@@ -80,6 +90,12 @@ func (c Clientset) AccessToken() crudResource {
 func (c *Clientset) UnauthenticatedClient() *Clientset {
 	c.config.Token = ""
 	return c
+}
+
+func (c *Clientset) Registration() *RegistrationClient {
+	return &RegistrationClient{
+		Clientset: *c,
+	}
 }
 
 func (c *Clientset) Cluster(clientName string) *ClusterClient {
@@ -185,12 +201,8 @@ func (c *Clientset) authenticate() error {
 	return nil
 }
 
-func (c ClusterClient) Register() error {
-	result, err := c.Clientset.do("POST", fmt.Sprintf("%s/api/v1/cluster", c.config.Host), struct {
-		ClusterName string `json:"cluster_name"`
-	}{
-		ClusterName: c.clientName,
-	})
+func (c RegistrationClient) Register(setupData ClientSetup) error {
+	result, err := c.Clientset.do("POST", fmt.Sprintf("%s/api/v1/cluster", c.config.Host), setupData)
 	if err != nil {
 		return err
 	}
