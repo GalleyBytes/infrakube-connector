@@ -14,6 +14,7 @@ import (
 	"github.com/gammazero/deque"
 	gocache "github.com/patrickmn/go-cache"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -287,6 +288,9 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 	for _, secretName := range secretNames {
 		secret, err := secretClient.Get(i.ctx, secretName, metav1.GetOptions{})
 		if err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
 			return nil, err
 		}
 
@@ -313,6 +317,9 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 	for _, configMapName := range configMapNames {
 		configMap, err := configMapClient.Get(i.ctx, configMapName, metav1.GetOptions{})
 		if err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
 			return nil, err
 		}
 
