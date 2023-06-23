@@ -154,6 +154,21 @@ func (i informer) updateEvent(old, new interface{}) {
 		return
 	}
 
+	postResult, err := i.clientset.Cluster(i.clusterName).Event().Create(context.TODO(), tfnew)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
+
+	if postResult.IsSuccess {
+		return
+	}
+
+	if !strings.Contains(postResult.ErrMsg, "TFOResource already exists") {
+		log.Println(postResult.ErrMsg)
+		return
+	}
+
 	putResult, err := i.clientset.Cluster(i.clusterName).Event().Update(context.TODO(), tfnew)
 	if err != nil {
 		log.Printf("ERROR in request to add resource: %s", err)
