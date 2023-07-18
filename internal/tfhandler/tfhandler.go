@@ -59,6 +59,29 @@ func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host
 		log.Fatal(err)
 	}
 
+	// A first time vcluster can take a minute to be available. Wait until the vcluster is available.
+	vclusterReady := false
+	for {
+		if !vclusterReady {
+			clusterHealthResult, err := clientset.Cluster(clientSetup.ClusterName).Health().Read(context.TODO(), nil)
+			if err != nil || !clusterHealthResult.IsSuccess {
+				time.Sleep(60 * time.Second)
+				continue
+			}
+			vclusterReady = true
+			log.Println("VCluster is ready!")
+		}
+
+		tfoHealthResult, err := clientset.Cluster(clientSetup.ClusterName).TFOHealth().Read(context.TODO(), nil)
+		if err != nil || !tfoHealthResult.IsSuccess {
+			time.Sleep(60 * time.Second)
+			continue
+		}
+		log.Println("TFO is ready!")
+		// Both vcluster and tfo are ready
+		break
+	}
+
 	tfhandler := informer{
 		ctx:         context.TODO(),
 		config:      config,
@@ -84,6 +107,8 @@ func (i informer) Run() {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	i.backgroundQueueWorker()
+
+	// Start the informer
 	i.Start(stopCh)
 	<-stopCh
 	log.Println("Stopped informer")

@@ -224,6 +224,14 @@ func (c ClusterClient) SyncDependencies() crudResource {
 	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/sync-dependencies", c.config.Host, c.clientName))
 }
 
+func (c ClusterClient) Health() crudResource {
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/health", c.config.Host, c.clientName))
+}
+
+func (c ClusterClient) TFOHealth() crudResource {
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/tfohealth", c.config.Host, c.clientName))
+}
+
 func newCRUDResource(c Clientset, url string) crudResource {
 	return crudResource{Clientset: c, url: url}
 }
