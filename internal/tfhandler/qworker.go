@@ -37,7 +37,7 @@ MainLoop:
 		name := tf.Name
 		namespace := tf.Namespace
 
-		log.Printf("Checking for resources that belong to %s", name)
+		log.Printf(".... Waiting for workflow completion. \t(%s/%s)", namespace, name)
 		result, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
 		if err != nil {
 			log.Println(err)
@@ -51,7 +51,7 @@ MainLoop:
 		}
 
 		if !result.IsSuccess {
-			log.Printf("INFO '%s' poll request was successful but %s", name, result.ErrMsg)
+			log.Printf(".... %s \t(%s/%s)", result.ErrMsg, namespace, name)
 			if strings.Contains(result.ErrMsg, fmt.Sprintf(`terraforms.tf.galleybytes.com "%s" not found`, name)) {
 				// Do not requeue since this resource is not even registered with the API
 				continue
@@ -62,7 +62,7 @@ MainLoop:
 
 		list, ok := result.Data.Data.([]interface{})
 		if !ok {
-			log.Printf("ERROR '%s' poll response in unexpected format %T", name, result.Data.Data)
+			log.Printf("ERROR api response in unexpected format %T \t(%s/%s)", result.Data.Data, namespace, name)
 			i.requeueAfter(tf, 30*time.Second)
 			continue
 		}
@@ -70,13 +70,13 @@ MainLoop:
 		for _, item := range list {
 			_, ok := item.(string)
 			if !ok {
-				log.Printf("ERROR '%s' response item in unexpected format %T", name, item)
+				log.Printf("ERROR api response item in unexpected format %T \t(%s/%s)", item, namespace, name)
 				i.requeueAfter(tf, 30*time.Second)
 				continue MainLoop
 			}
 			_, err := base64.StdEncoding.DecodeString(item.(string))
 			if err != nil {
-				log.Printf("ERROR '%s' response item cannot be decoded", name)
+				log.Printf("ERROR api response item cannot be decoded \t(%s/%s)", namespace, name)
 				i.requeueAfter(tf, 30*time.Second)
 				continue MainLoop
 			}
@@ -87,7 +87,7 @@ MainLoop:
 			applyRawManifest(ctx, kedge.KubernetesConfig(os.Getenv("KUBECONFIG")), b, namespace)
 
 		}
-		log.Printf("Done handling '%s'", name)
+		log.Printf("Done handling \t(%s/%s)", namespace, name)
 	}
 }
 
