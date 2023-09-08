@@ -195,7 +195,11 @@ func (i informer) createAndUpdate(tf *tfv1beta1.Terraform) {
 			break
 		}
 	}
-	i.queue.PushBack(*tf)
+	go func() {
+		// Give time for the API to process before queueing up the worker that polls for results
+		time.Sleep(30 * time.Second)
+		i.queue.PushBack(*tf)
+	}()
 }
 
 func (i informer) addEvent(obj interface{}) {
@@ -206,7 +210,6 @@ func (i informer) addEvent(obj interface{}) {
 	}
 	log.Printf("Add event observed for tf resource \t(%s/%s)", tf.Namespace, tf.Name)
 	i.createAndUpdate(tf)
-
 }
 
 func (i informer) updateEvent(old, new interface{}) {
