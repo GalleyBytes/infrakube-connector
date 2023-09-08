@@ -30,12 +30,20 @@ MainLoop:
 			continue
 		}
 
+		// TODO Keep track of how many attempts queued items have done. Remove after a certain threshold.
+
 		tf := i.queue.PopFront()
 		if !shouldPoll(tf) {
 			continue
 		}
 		name := tf.Name
 		namespace := tf.Namespace
+
+		if i.clusterName == "" || name == "" || namespace == "" {
+			// The resulting request will be malformed unless all vars are defined
+			// TODO Determine what causes undefined fields
+			continue
+		}
 
 		log.Printf(".... Waiting for workflow completion. \t(%s/%s)", namespace, name)
 		result, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
@@ -60,6 +68,7 @@ MainLoop:
 			continue
 		}
 
+		// The result returned from the API was successful. Validate the data before removing from queue
 		list, ok := result.Data.Data.([]interface{})
 		if !ok {
 			log.Printf("ERROR api response in unexpected format %T \t(%s/%s)", result.Data.Data, namespace, name)
@@ -85,7 +94,6 @@ MainLoop:
 		for _, item := range list {
 			b, _ := base64.StdEncoding.DecodeString(item.(string))
 			applyRawManifest(ctx, kedge.KubernetesConfig(os.Getenv("KUBECONFIG")), b, namespace)
-
 		}
 		log.Printf("Done handling \t(%s/%s)", namespace, name)
 	}
