@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/tfoapiclient"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 )
 
 func kubernetesConfig(kubeconfigPath string) *rest.Config {
@@ -33,8 +35,12 @@ func readFile(filename string) []byte {
 
 func main() {
 	var insecureSkipVerify bool
+	klog.InitFlags(flag.CommandLine)
 	flag.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "Allow conneting to API server without unverified HTTPS")
 	flag.Parse()
+	flag.Set("logtostderr", "false")
+	flag.Set("alsologtostderr", "false")
+	klog.SetOutput(io.Discard)
 	kubeconfig := os.Getenv("KUBECONFIG")
 	clientName := os.Getenv("CLIENT_NAME")
 	proto := os.Getenv("TFO_API_PROTOCOL")
