@@ -114,34 +114,96 @@ func (i informer) Run() {
 	log.Println("Stopped informer")
 }
 
+type eventQueryRetryResult struct {
+	next bool
+	err  error
+}
+
+// Send a query to the API and only return upon a successful response from the API withith a given time threshed.
+// Upon reaching the threshold, exit the program to prevent the tf resouce on the API (vcluster) from being
+// out-of-sync with the local resource
+func eventQueryRetrier(crud tfoapiclient.CrudResource, crudType string, data any) *eventQueryRetryResult {
+	expiration := time.Now().Add(time.Duration(60 * time.Minute))
+	done := make(chan eventQueryRetryResult)
+
+	go func() {
+		for {
+			var result *tfoapiclient.Result
+			var err error
+			switch crudType {
+			case "CREATE":
+				result, err = crud.Create(context.TODO(), data)
+			case "UPDATE":
+				result, err = crud.Update(context.TODO(), data)
+			case "READ":
+				result, err = crud.Read(context.TODO(), data)
+			default:
+				done <- eventQueryRetryResult{false, fmt.Errorf("verb '%s' undefined", crudType)}
+				return
+			}
+
+			if err == nil {
+				if result.IsSuccess && result.ErrMsg == "" {
+					done <- eventQueryRetryResult{false, nil}
+					return
+				} else if result.IsSuccess {
+					done <- eventQueryRetryResult{true, fmt.Errorf(result.ErrMsg)}
+					return
+				}
+			}
+			if time.Now().After(expiration) {
+				// Terminate the controller to prevent silent errors
+				if err != nil {
+					log.Fatal(err)
+				}
+				log.Fatal(result.ErrMsg)
+			}
+			if err != nil {
+				log.Println(err)
+			} else {
+				// Case where err is not nil but the result was not successful
+				log.Println(result.ErrMsg)
+			}
+
+			time.Sleep(20 * time.Second)
+		}
+	}()
+
+	e := <-done
+	return &e
+
+}
+
 func (i informer) addEvent(obj interface{}) {
 	tf, err := assertTf(obj)
 	if err != nil {
 		log.Printf("ERROR in add event: %s", err)
 		return
 	}
-	log.Printf("Add event observed '%s'", tf.Name)
+	log.Printf("Add event observed for tf resource '%s/%s'", tf.Namespace, tf.Name)
 
+	log.Printf("Gathering all resources to sync for tf resource '%s/%s'", tf.Namespace, tf.Name)
 	err = i.SyncDependencies(tf)
 	if err != nil {
 		log.Println(err.Error())
 		return
 	}
 
-	postResult, err := i.clientset.Cluster(i.clusterName).Event().Create(context.TODO(), tf)
-	if err != nil {
-		log.Println(err.Error())
+	result := eventQueryRetrier(i.clientset.Cluster(i.clusterName).Event(), "CREATE", tf)
+	if result == nil {
+		log.Println("An unknown error has occurred")
+		return
+	}
+	if !result.next {
+		if result.err != nil {
+			log.Println(result.err.Error())
+			return
+		}
+		log.Printf("Successful POST request sent to api for tf resource '%s/%s'", tf.Namespace, tf.Name)
 		return
 	}
 
-	if postResult.IsSuccess {
-		return
-	}
-
-	if !strings.Contains(postResult.ErrMsg, "TFOResource already exists") {
-		log.Println(postResult.ErrMsg)
-		return
-	}
+	// This used to continue if next was not defined
 
 	putResult, err := i.clientset.Cluster(i.clusterName).Event().Update(context.TODO(), tf)
 	if err != nil {
@@ -154,7 +216,9 @@ func (i informer) addEvent(obj interface{}) {
 		return
 	}
 
+	log.Printf("Successful PUT request sent to api for tf resource '%s/%s'", tf.Namespace, tf.Name)
 	i.queue.PushBack(*tf)
+	log.Printf("tf resource '%s/%s' in queue to determine completion", tf.Namespace, tf.Name)
 }
 
 func (i informer) updateEvent(old, new interface{}) {
@@ -174,6 +238,7 @@ func (i informer) updateEvent(old, new interface{}) {
 		log.Println("Observed update event: ", tfnew.Name)
 	}
 
+	log.Printf("Gathering all resources to sync for tf resource '%s/%s'", tfnew.Namespace, tfnew.Name)
 	err = i.SyncDependencies(tfnew)
 	if err != nil {
 		log.Println(err.Error())
@@ -250,6 +315,7 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 	for _, c := range tf.Spec.Credentials {
 		// credentials.secretNameRef
 		if c.SecretNameRef.Name != "" {
+			log.Printf("...found secret/%s", c.SecretNameRef.Name)
 			secretNames = append(secretNames, c.SecretNameRef.Name)
 		}
 	}
@@ -260,11 +326,13 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 		if c.Git != nil {
 			if c.Git.SSH != nil {
 				if c.Git.SSH.SSHKeySecretRef != nil {
+					log.Printf("...found secret/%s", c.Git.SSH.SSHKeySecretRef.Name)
 					secretNames = append(secretNames, c.Git.SSH.SSHKeySecretRef.Name)
 				}
 			}
 			if c.Git.HTTPS != nil {
 				if c.Git.HTTPS.TokenSecretRef != nil {
+					log.Printf("...found secret/%s", c.Git.HTTPS.TokenSecretRef.Name)
 					secretNames = append(secretNames, c.Git.HTTPS.TokenSecretRef.Name)
 				}
 			}
@@ -273,11 +341,13 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 
 	if tf.Spec.SSHTunnel != nil {
 		// sshtunnel.sshkeysecretref
+		log.Printf("...found secret/%s", tf.Spec.SSHTunnel.SSHKeySecretRef.Name)
 		secretNames = append(secretNames, tf.Spec.SSHTunnel.SSHKeySecretRef.Name)
 	}
 
-	for tf.Spec.TerraformModule.ConfigMapSelector != nil {
+	if tf.Spec.TerraformModule.ConfigMapSelector != nil {
 		// terraformmodule.configmapselector
+		log.Printf("...found configmap/%s", tf.Spec.TerraformModule.ConfigMapSelector.Name)
 		configMapNames = append(configMapNames, tf.Spec.TerraformModule.ConfigMapSelector.Name)
 	}
 
@@ -287,9 +357,11 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 			// taskoptions[].env[].valuefrom.secretkeyref
 			if e.ValueFrom != nil {
 				if e.ValueFrom.SecretKeyRef != nil {
+					log.Printf("...found secret/%s", e.ValueFrom.SecretKeyRef.Name)
 					secretNames = append(secretNames, e.ValueFrom.SecretKeyRef.Name)
 				}
 				if e.ValueFrom.ConfigMapKeyRef != nil {
+					log.Printf("...found configmap/%s", e.ValueFrom.ConfigMapKeyRef.Name)
 					configMapNames = append(configMapNames, e.ValueFrom.ConfigMapKeyRef.Name)
 				}
 			}
@@ -298,14 +370,17 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 			// taskoptions[].envfrom[].configmapref
 			// taskoptions[].envfrom[].secretref
 			if e.SecretRef != nil {
+				log.Printf("...found secret/%s", e.SecretRef.Name)
 				secretNames = append(secretNames, e.SecretRef.Name)
 			}
 			if e.ConfigMapRef != nil {
+				log.Printf("...found configmap/%s", e.ConfigMapRef.Name)
 				configMapNames = append(configMapNames, e.ConfigMapRef.Name)
 			}
 		}
 		if c.Script.ConfigMapSelector != nil {
 			// taskoptions[].script.configmapselector
+			log.Printf("...found configmap/%s", c.Script.ConfigMapSelector.Name)
 			configMapNames = append(configMapNames, c.Script.ConfigMapSelector.Name)
 		}
 	}
@@ -377,19 +452,21 @@ func (i informer) SyncDependencies(tf *tfv1beta1.Terraform) error {
 	// hub cluster (ie the vcluster).
 	dependencies, err := i.gatherDependenciesToSync(tf)
 	if err != nil {
-		return fmt.Errorf("An error occurred gathering dependencies from '%s/%s': %s\n", tf.Namespace, tf.Name, err.Error())
+		return fmt.Errorf("an error occurred gathering dependencies from '%s/%s': %s", tf.Namespace, tf.Name, err.Error())
 	}
 	data := map[string][]byte{
 		"raw":       raw(dependencies),
 		"namespace": []byte(tf.Namespace),
 	}
-	syncResult, err := i.clientset.Cluster(i.clusterName).SyncDependencies().Update(context.TODO(), data)
-	if err != nil {
-		return err
+	result := eventQueryRetrier(i.clientset.Cluster(i.clusterName).SyncDependencies(), "UPDATE", data)
+	if result == nil {
+
+		return fmt.Errorf("an unknown error has occurred")
 	}
-	if !syncResult.IsSuccess {
-		return fmt.Errorf(syncResult.ErrMsg)
+	if result.err != nil {
+		return result.err
 	}
+
 	return nil
 }
 
