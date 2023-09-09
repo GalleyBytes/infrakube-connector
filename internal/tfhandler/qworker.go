@@ -45,7 +45,6 @@ MainLoop:
 			continue
 		}
 
-		log.Printf(".... Waiting for workflow completion. \t(%s/%s)", namespace, name)
 		result, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
 		if err != nil {
 			log.Println(err)
@@ -131,4 +130,5 @@ func (i informer) requeueAfter(tf tfv1beta1.Terraform, t time.Duration) {
 		time.Sleep(t)
 		i.queue.PushBack(tf)
 	}()
+	log.Printf(".... Waiting for workflow completion. \t(%s/%s)", tf.Namespace, tf.Name)
 }
