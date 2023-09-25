@@ -45,47 +45,48 @@ MainLoop:
 			continue
 		}
 
+		failureRequeueRate := 100 * time.Second
+
 		result, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
 		if err != nil {
-			log.Println(err)
-			i.requeueAfter(tf, 30*time.Second)
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR: %s)", err))
+			continue
+		}
+
+		if result == nil {
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... API did not return results)"))
 			continue
 		}
 
 		if strings.Contains(result.Data.StatusInfo.Message, "workflow has not completed") {
-			i.requeueAfter(tf, 30*time.Second)
+			i.requeueAfter(tf, 30*time.Second, fmt.Sprintf(".... Waiting for workflow completion)"))
 			continue
 		}
 
 		if !result.IsSuccess {
-			log.Printf(".... %s \t(%s/%s)", result.ErrMsg, namespace, name)
-			if strings.Contains(result.ErrMsg, fmt.Sprintf(`terraforms.tf.galleybytes.com "%s" not found`, name)) {
-				// Do not requeue since this resource is not even registered with the API
-				continue
-			}
-			i.requeueAfter(tf, 30*time.Second)
+			// Even after a failure, continue to check for a success. There is a possibility a debug session
+			// may fix the session.
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... %s)", result.ErrMsg))
 			continue
 		}
 
-		// The result returned from the API was successful. Validate the data before removing from queue
 		list, ok := result.Data.Data.([]interface{})
+		// Validate the API response structure. If faiure are detected, requeue and hope it was a network blip.
+		// ... else there might be breaking changes in either this client or in the API.
 		if !ok {
-			log.Printf("ERROR api response in unexpected format %T \t(%s/%s)", result.Data.Data, namespace, name)
-			i.requeueAfter(tf, 30*time.Second)
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR api response in unexpected format %T)", result.Data.Data))
 			continue
 		}
 
 		for _, item := range list {
 			_, ok := item.(string)
 			if !ok {
-				log.Printf("ERROR api response item in unexpected format %T \t(%s/%s)", item, namespace, name)
-				i.requeueAfter(tf, 30*time.Second)
+				i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR api response item in unexpected format %T)", item))
 				continue MainLoop
 			}
 			_, err := base64.StdEncoding.DecodeString(item.(string))
 			if err != nil {
-				log.Printf("ERROR api response item cannot be decoded \t(%s/%s)", namespace, name)
-				i.requeueAfter(tf, 30*time.Second)
+				i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR api response item cannot be decoded)"))
 				continue MainLoop
 			}
 		}
@@ -125,10 +126,12 @@ func shouldPoll(tf tfv1beta1.Terraform) bool {
 	return tf.Spec.OutputsSecret != ""
 }
 
-func (i informer) requeueAfter(tf tfv1beta1.Terraform, t time.Duration) {
+func (i informer) requeueAfter(tf tfv1beta1.Terraform, t time.Duration, msg string) {
 	go func() {
 		time.Sleep(t)
 		i.queue.PushBack(tf)
 	}()
-	log.Printf(".... Waiting for workflow completion. \t(%s/%s)", tf.Namespace, tf.Name)
+
+	log.Printf(".... %s \t(%s/%s)", msg, tf.Namespace, tf.Name)
+
 }
