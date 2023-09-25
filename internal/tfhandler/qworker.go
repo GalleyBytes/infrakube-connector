@@ -49,24 +49,24 @@ MainLoop:
 
 		result, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
 		if err != nil {
-			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR: %s)", err))
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR: %s", err))
 			continue
 		}
 
 		if result == nil {
-			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... API did not return results)"))
+			i.requeueAfter(tf, failureRequeueRate, "API did not return results")
 			continue
 		}
 
 		if strings.Contains(result.Data.StatusInfo.Message, "workflow has not completed") {
-			i.requeueAfter(tf, 30*time.Second, fmt.Sprintf(".... Waiting for workflow completion)"))
+			i.requeueAfter(tf, 30*time.Second, "Waiting for workflow completion")
 			continue
 		}
 
 		if !result.IsSuccess {
 			// Even after a failure, continue to check for a success. There is a possibility a debug session
 			// may fix the session.
-			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... %s)", result.ErrMsg))
+			i.requeueAfter(tf, failureRequeueRate, result.ErrMsg)
 			continue
 		}
 
@@ -74,19 +74,19 @@ MainLoop:
 		// Validate the API response structure. If faiure are detected, requeue and hope it was a network blip.
 		// ... else there might be breaking changes in either this client or in the API.
 		if !ok {
-			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR api response in unexpected format %T)", result.Data.Data))
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR api response in unexpected format %T", result.Data.Data))
 			continue
 		}
 
 		for _, item := range list {
 			_, ok := item.(string)
 			if !ok {
-				i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR api response item in unexpected format %T)", item))
+				i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR api response item in unexpected format %T", item))
 				continue MainLoop
 			}
 			_, err := base64.StdEncoding.DecodeString(item.(string))
 			if err != nil {
-				i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf(".... ERROR api response item cannot be decoded)"))
+				i.requeueAfter(tf, failureRequeueRate, "ERROR api response item cannot be decoded")
 				continue MainLoop
 			}
 		}
