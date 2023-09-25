@@ -183,7 +183,7 @@ func (i informer) createAndUpdate(tf *tfv1beta1.Terraform) {
 	for _, action := range []string{"CREATE", "UPDATE"} {
 		result := eventQueryRetrier(i.clientset.Cluster(i.clusterName).Event(), action, tf)
 		if result == nil {
-			log.Println("An unknown error has occurred")
+			log.Printf("Unknown error occurred in %s \t(%s/%s)\n", action, tf.Namespace, tf.Name)
 			return
 		}
 		if !result.next {

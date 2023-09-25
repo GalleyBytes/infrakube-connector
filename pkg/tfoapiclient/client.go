@@ -54,7 +54,7 @@ type config struct {
 
 type Clientset struct {
 	http.Client
-	config config
+	config *config
 }
 
 type ClientSetup struct {
@@ -70,7 +70,7 @@ func NewClientset(host, username, password string, insecureSkipVerify bool) (*Cl
 	client := http.Client{Transport: tr}
 	tfoapiClientset := Clientset{
 		Client: client,
-		config: config{
+		config: &config{
 			Host:     host,
 			Username: username,
 			Password: password,
