@@ -3,6 +3,7 @@ package tfhandler
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/util"
 	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
 	"github.com/isaaguilar/kedge"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 )
 
@@ -92,20 +94,32 @@ MainLoop:
 		}
 
 		isApplyReceivedResourcesFailed := false
+		totalResourcesReceivedFromAPI := 0
 		applyErr := ""
 		for _, item := range list {
 			b, _ := base64.StdEncoding.DecodeString(item.(string))
+
+			var items corev1.List
+			err = json.Unmarshal(b, &items)
+			if err != nil {
+				isApplyReceivedResourcesFailed = true
+				applyErr += err.Error()
+				continue
+			}
+			totalResourcesReceivedFromAPI += len(items.Items)
+
 			err = applyRawManifest(ctx, kedge.KubernetesConfig(os.Getenv("KUBECONFIG")), b, namespace)
 			if err != nil {
-				applyErr += err.Error()
 				isApplyReceivedResourcesFailed = true
+				applyErr += err.Error()
+				continue
 			}
 		}
 		if isApplyReceivedResourcesFailed {
 			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR applying resources received: %s", applyErr))
 			continue
 		}
-		log.Printf("Done handling workflow and received %d resources back from api \t(%s/%s)", len(list), namespace, name)
+		log.Printf("Done handling workflow and received %d resources back from api \t(%s/%s)", totalResourcesReceivedFromAPI, namespace, name)
 	}
 }
 
