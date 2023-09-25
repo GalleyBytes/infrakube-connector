@@ -91,11 +91,21 @@ MainLoop:
 			}
 		}
 
+		isApplyReceivedResourcesFailed := false
+		applyErr := ""
 		for _, item := range list {
 			b, _ := base64.StdEncoding.DecodeString(item.(string))
-			applyRawManifest(ctx, kedge.KubernetesConfig(os.Getenv("KUBECONFIG")), b, namespace)
+			err = applyRawManifest(ctx, kedge.KubernetesConfig(os.Getenv("KUBECONFIG")), b, namespace)
+			if err != nil {
+				applyErr += err.Error()
+				isApplyReceivedResourcesFailed = true
+			}
 		}
-		log.Printf("Done handling \t(%s/%s)", namespace, name)
+		if isApplyReceivedResourcesFailed {
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR applying resources received: %s", applyErr))
+			continue
+		}
+		log.Printf("Done handling workflow and received %d resources back from api \t(%s/%s)", len(list), namespace, name)
 	}
 }
 
