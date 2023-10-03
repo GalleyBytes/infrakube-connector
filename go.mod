@@ -3,10 +3,9 @@ module github.com/galleybytes/monitor/projects/terraform-operator-remote-control
 go 1.20
 
 require (
-	github.com/galleybytes/terraform-operator v0.12.1
+	github.com/galleybytes/terraform-operator v0.14.0
 	github.com/galleybytes/terraform-operator-api v0.0.0-20230214024810-4a6c274dda46
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pkg/errors v0.9.1
 	k8s.io/apimachinery v0.27.3
 	k8s.io/client-go v0.27.3
 )
@@ -23,7 +22,6 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0 // indirect
 	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.3 // indirect
-	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
@@ -34,6 +32,7 @@ require (
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
 	gorm.io/gorm v1.23.8 // indirect
@@ -75,7 +74,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.27.3
-	k8s.io/klog/v2 v2.100.1 // indirect
+	k8s.io/klog/v2 v2.100.1
 	// k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // I WANT THIS ONE
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106 // indirect
