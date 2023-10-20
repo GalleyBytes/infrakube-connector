@@ -215,6 +215,10 @@ func (c ClusterClient) Event() CrudResource {
 	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/event", c.config.Host, c.clientName))
 }
 
+func (c ClusterClient) Status(namespace, name string) CrudResource {
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/resource/%s/%s/status", c.config.Host, c.clientName, namespace, name))
+}
+
 func (c ClusterClient) Poll(namespace, name string) CrudResource {
 	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/resource/%s/%s/poll", c.config.Host, c.clientName, namespace, name))
 }

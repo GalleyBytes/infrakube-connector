@@ -17,6 +17,13 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+type StatusCheckResponse struct {
+	DidStart     bool   `json:"did_start"`
+	DidComplete  bool   `json:"did_complete"`
+	CurrentState string `json:"current_state"`
+	CurrentTask  string `json:"current_task"`
+}
+
 func (i informer) backgroundQueueWorker() {
 	go i.worker()
 }
@@ -49,7 +56,7 @@ MainLoop:
 
 		failureRequeueRate := 100 * time.Second
 
-		result, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
+		result, err := i.clientset.Cluster(i.clusterName).Status(namespace, name).Read(ctx, &tf)
 		if err != nil {
 			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR: %s", err))
 			continue
@@ -60,8 +67,8 @@ MainLoop:
 			continue
 		}
 
-		if strings.Contains(result.Data.StatusInfo.Message, "workflow has not completed") {
-			i.requeueAfter(tf, 30*time.Second, "Waiting for workflow completion")
+		if result.Data.StatusInfo.Message != "" {
+			i.requeueAfter(tf, 30*time.Second, result.Data.StatusInfo.Message)
 			continue
 		}
 
@@ -72,11 +79,55 @@ MainLoop:
 			continue
 		}
 
-		list, ok := result.Data.Data.([]interface{})
+		statusCheckResponse, ok := result.Data.Data.([]any)
+		if !ok {
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR status check response in unexpected format %T", result.Data.Data))
+			continue
+		}
+
+		for _, responseItem := range statusCheckResponse {
+			if _, ok := responseItem.(map[string]any); !ok {
+				i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR status check response item in unexpected format %T", responseItem))
+				continue MainLoop
+			}
+			if _, ok := responseItem.(map[string]any)["did_complete"].(bool); !ok {
+				i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR unexpected json format for 'did_complete' key %T", responseItem))
+				continue MainLoop
+			}
+			if !responseItem.(map[string]any)["did_complete"].(bool) {
+				i.requeueAfter(tf, 30*time.Second, "Waiting for workflow completion")
+				continue MainLoop
+			}
+		}
+
+		poll, err := i.clientset.Cluster(i.clusterName).Poll(namespace, name).Read(ctx, &tf)
+		if err != nil {
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR: %s", err))
+			continue
+		}
+
+		if poll == nil {
+			i.requeueAfter(tf, failureRequeueRate, "API did not return results")
+			continue
+		}
+
+		if strings.Contains(poll.Data.StatusInfo.Message, "workflow has not completed") {
+			i.requeueAfter(tf, 30*time.Second, "Waiting for workflow completion")
+			continue
+		}
+
+		if !poll.IsSuccess {
+			// Even after a failure, continue to check for a success. There is a possibility a debug session
+			// may fix the session.
+			i.requeueAfter(tf, failureRequeueRate, poll.ErrMsg)
+			continue
+		}
+
+		list, ok := poll.Data.Data.([]interface{})
 		// Validate the API response structure. If faiure are detected, requeue and hope it was a network blip.
 		// ... else there might be breaking changes in either this client or in the API.
 		if !ok {
-			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR api response in unexpected format %T", result.Data.Data))
+			i.requeueAfter(tf, failureRequeueRate, fmt.Sprintf("ERROR api response in unexpected format %T", poll.Data.Data))
 			continue
 		}
 
