@@ -178,7 +178,7 @@ MainLoop:
 		log.Printf("Done handling workflow and received %d resources back from api \t(%s/%s)", totalResourcesReceivedFromAPI, namespace, name)
 		if i.postJobContainerImage != "" {
 			if err := i.createPostJob(namespace, name); err != nil {
-				log.Printf("Error creating post job \t(%s/%s)", namespace, name)
+				log.Printf("Error creating post job: %s \t(%s/%s)", err, namespace, name)
 			}
 		}
 	}
@@ -211,7 +211,7 @@ func (i informer) createPostJob(namespace, name string) error {
 		},
 		RoleRef: rbacv1.RoleRef{
 			Kind:     "ClusterRole",
-			Name:     "tforc",
+			Name:     "terraform-operator-remote-controller", // TODO Get this from the deployment instead
 			APIGroup: "rbac.authorization.k8s.io",
 		},
 	}
