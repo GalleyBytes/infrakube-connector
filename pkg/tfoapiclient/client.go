@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/galleybytes/terraform-operator-api/pkg/api"
@@ -132,6 +133,7 @@ func (c *Clientset) do(method, url string, bodyData any) (*Result, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusUnauthorized {
+		log.Println("TFO API unauthorized status")
 		err := c.authenticate()
 		if err != nil {
 			return nil, err

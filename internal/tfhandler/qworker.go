@@ -13,7 +13,12 @@ import (
 	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/util"
 	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
 	"github.com/isaaguilar/kedge"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
@@ -171,6 +176,122 @@ MainLoop:
 			continue
 		}
 		log.Printf("Done handling workflow and received %d resources back from api \t(%s/%s)", totalResourcesReceivedFromAPI, namespace, name)
+		if i.postJobContainerImage != "" {
+			if err := i.createPostJob(namespace, name); err != nil {
+				log.Printf("Error creating post job \t(%s/%s)", namespace, name)
+			}
+		}
+	}
+}
+
+func (i informer) createPostJob(namespace, name string) error {
+	serviceAccountConfig := corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "tforc-post",
+		},
+	}
+	serviceAccountClient := kubernetes.NewForConfigOrDie(i.config).CoreV1().ServiceAccounts(namespace)
+	if _, err := serviceAccountClient.Create(i.ctx, &serviceAccountConfig, metav1.CreateOptions{}); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			return err
+		}
+	}
+
+	clusterRoleBinding := rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("tforc-post-binding-%s", namespace),
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      "tforc-post",
+				Namespace: namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "ClusterRole",
+			Name:     "tforc",
+			APIGroup: "rbac.authorization.k8s.io",
+		},
+	}
+	clusterRoleBindingClient := kubernetes.NewForConfigOrDie(i.config).RbacV1().ClusterRoleBindings()
+	if _, err := clusterRoleBindingClient.Create(i.ctx, &clusterRoleBinding, metav1.CreateOptions{}); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			return err
+		}
+	}
+
+	jobConfig := batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:    namespace,
+			GenerateName: "tforc-post-",
+			Labels: map[string]string{
+				"galleybytes.com/tforc-post": "owned",
+			},
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					ServiceAccountName: "tforc-post",
+					RestartPolicy:      "Never",
+					Containers: []corev1.Container{
+						{
+							Name:            "tforc-post",
+							Image:           i.postJobContainerImage,
+							ImagePullPolicy: "IfNotPresent",
+							Env: []corev1.EnvVar{
+								{
+									Name:  "TFO_RESOURCE_NAME",
+									Value: name,
+								},
+								{
+									Name:  "TFO_RESOURCE_NAMESPACE",
+									Value: namespace,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	jobClient := kubernetes.NewForConfigOrDie(i.config).BatchV1().Jobs(namespace)
+	job, err := jobClient.Create(i.ctx, &jobConfig, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	log.Printf("Started Post Job %s/%s \t(%s/%s)", job.Namespace, job.Name, namespace, name)
+	return nil
+
+}
+
+func (i informer) backgroundPostJobRemover() {
+	go i.postJobRemover()
+}
+
+func (i informer) postJobRemover() {
+	jobClient := kubernetes.NewForConfigOrDie(i.config).BatchV1().Jobs("")
+	for {
+		jobList, err := jobClient.List(i.ctx, metav1.ListOptions{
+			LabelSelector: "galleybytes.com/tforc-post",
+		})
+		if err != nil {
+			log.Println("Failed to list post jobs")
+			continue
+		}
+		for _, job := range jobList.Items {
+			if job.Status.Succeeded > 0 || job.Status.Failed > 0 {
+				namespacedJobClient := kubernetes.NewForConfigOrDie(i.config).BatchV1().Jobs(job.Namespace)
+				if err := namespacedJobClient.Delete(i.ctx, job.Name, metav1.DeleteOptions{}); err != nil {
+					log.Printf("Failed to delete job %s/%s", job.Namespace, job.Name)
+				} else {
+					log.Printf("Removed job %s/%s", job.Namespace, job.Name)
+				}
+			}
+		}
+		time.Sleep(60 * time.Second)
 	}
 }
 

@@ -36,17 +36,18 @@ var (
 
 type informer struct {
 	dynamicinformer.DynamicSharedInformerFactory
-	ctx         context.Context
-	config      *rest.Config
-	clientset   *tfoapiclient.Clientset
-	cache       *gocache.Cache
-	queue       *deque.Deque[tfv1beta1.Terraform]
-	clusterName string
+	ctx                   context.Context
+	config                *rest.Config
+	clientset             *tfoapiclient.Clientset
+	cache                 *gocache.Cache
+	queue                 *deque.Deque[tfv1beta1.Terraform]
+	postJobContainerImage string
+	clusterName           string
 }
 
-func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host, user, password string, insecureSkipVerify bool) informer {
+func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host, user, password string, insecureSkipVerify bool, postJobContainerImage string) informer {
+	log.Println("Setting up")
 	dynamicClient := dynamic.NewForConfigOrDie(config)
-
 	clientset, err := tfoapiclient.NewClientset(host, user, password, insecureSkipVerify)
 	if err != nil {
 		log.Fatal(err)
@@ -82,12 +83,13 @@ func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host
 	}
 
 	tfhandler := informer{
-		ctx:         context.TODO(),
-		config:      config,
-		clientset:   clientset,
-		clusterName: clientSetup.ClusterName,
-		cache:       gocache.New(10*time.Minute, 10*time.Minute),
-		queue:       &deque.Deque[tfv1beta1.Terraform]{},
+		ctx:                   context.TODO(),
+		config:                config,
+		clientset:             clientset,
+		clusterName:           clientSetup.ClusterName,
+		cache:                 gocache.New(10*time.Minute, 10*time.Minute),
+		queue:                 &deque.Deque[tfv1beta1.Terraform]{},
+		postJobContainerImage: postJobContainerImage,
 	}
 
 	handler := cache.ResourceEventHandlerFuncs{
@@ -106,6 +108,7 @@ func (i informer) Run() {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	i.backgroundQueueWorker()
+	i.backgroundPostJobRemover()
 
 	// Start the informer
 	i.Start(stopCh)

@@ -32,7 +32,7 @@ This will require `get` and `list` permissions to `terraforms` resources:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
- name: tforc
+  name: tforc
 rules:
 - apiGroups:
   - tf.galleybytes.com
@@ -42,6 +42,25 @@ rules:
   - get
   - list
 ```
+
+Additional rules can be added when defining a post job to run after a successful terraform workflow.
+
+```yaml
+
+# ADDITIONAL RULES
+- apiGroups:
+  - ""
+  resources:
+  - jobs
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - '*'
+  ```
 
 And run the binary or run an in-cluster container:
 
