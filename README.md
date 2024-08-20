@@ -49,11 +49,27 @@ Additional rules can be added when defining a post job to run after a successful
 
 # ADDITIONAL RULES
 - apiGroups:
-  - ""
+  - batch
   resources:
   - jobs
   verbs:
   - '*'
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  verbs:
+  - create
+  - get
+  - list
 - apiGroups:
   - ""
   resources:
