@@ -279,6 +279,7 @@ func (i informer) postJobRemover() {
 		})
 		if err != nil {
 			log.Println("Failed to list post jobs")
+			time.Sleep(60 * time.Second)
 			continue
 		}
 		for _, job := range jobList.Items {
