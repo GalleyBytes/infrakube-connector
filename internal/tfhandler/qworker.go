@@ -285,7 +285,8 @@ func (i informer) postJobRemover() {
 		for _, job := range jobList.Items {
 			if job.Status.Succeeded > 0 || job.Status.Failed > 0 {
 				namespacedJobClient := kubernetes.NewForConfigOrDie(i.config).BatchV1().Jobs(job.Namespace)
-				if err := namespacedJobClient.Delete(i.ctx, job.Name, metav1.DeleteOptions{}); err != nil {
+				deletePropagationBackground := metav1.DeletePropagationBackground
+				if err := namespacedJobClient.Delete(i.ctx, job.Name, metav1.DeleteOptions{PropagationPolicy: &deletePropagationBackground}); err != nil {
 					log.Printf("Failed to delete job %s/%s", job.Namespace, job.Name)
 				} else {
 					log.Printf("Removed job %s/%s", job.Namespace, job.Name)
