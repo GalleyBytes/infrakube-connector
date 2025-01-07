@@ -13,6 +13,7 @@ import (
 	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/util"
 	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
 	"github.com/isaaguilar/kedge"
+	"gopkg.in/yaml.v2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -184,6 +185,17 @@ MainLoop:
 	}
 }
 
+func getTolerations(postJobTolerations []byte) ([]corev1.Toleration, error) {
+	var tolerations []corev1.Toleration
+	if postJobTolerations != nil {
+		err := yaml.Unmarshal(postJobTolerations, &tolerations)
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshalling tolerations: %v", err)
+		}
+	}
+	return tolerations, nil
+}
+
 func (i informer) createPostJob(namespace, name string) error {
 	serviceAccountConfig := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -196,6 +208,11 @@ func (i informer) createPostJob(namespace, name string) error {
 		if !errors.IsAlreadyExists(err) {
 			return err
 		}
+	}
+
+	tolerations, err := getTolerations(i.postJobTolerations)
+	if err != nil {
+		return err
 	}
 
 	clusterRoleBinding := rbacv1.ClusterRoleBinding{
@@ -252,6 +269,7 @@ func (i informer) createPostJob(namespace, name string) error {
 							},
 						},
 					},
+					Tolerations: tolerations,
 				},
 			},
 		},

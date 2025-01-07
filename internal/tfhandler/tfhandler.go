@@ -42,10 +42,11 @@ type informer struct {
 	cache                 *gocache.Cache
 	queue                 *deque.Deque[tfv1beta1.Terraform]
 	postJobContainerImage string
+	postJobTolerations    []byte
 	clusterName           string
 }
 
-func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host, user, password string, insecureSkipVerify bool, postJobContainerImage string) informer {
+func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host, user, password string, insecureSkipVerify bool, postJobContainerImage string, postJobTolerations []byte) informer {
 	log.Println("Setting up")
 	dynamicClient := dynamic.NewForConfigOrDie(config)
 	clientset, err := tfoapiclient.NewClientset(host, user, password, insecureSkipVerify)
@@ -90,6 +91,7 @@ func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host
 		cache:                 gocache.New(10*time.Minute, 10*time.Minute),
 		queue:                 &deque.Deque[tfv1beta1.Terraform]{},
 		postJobContainerImage: postJobContainerImage,
+		postJobTolerations:    postJobTolerations,
 	}
 
 	handler := cache.ResourceEventHandlerFuncs{

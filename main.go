@@ -51,13 +51,14 @@ func main() {
 	clusterManifest := readFile(os.Getenv("TFO_API_CLUSTER_MANIFEST"))
 	vClusterManifest := readFile(os.Getenv("TFO_API_VCLUSTER_MANIFEST"))
 	postJobContainerImage := os.Getenv("POST_JOB_CONTAINER_IMAGE")
+	postJobTolerations := readFile(os.Getenv("POST_JOB_TOLERATIONS"))
 	url := fmt.Sprintf("%s://%s:%s", proto, host, port)
 	clientSetup := tfoapiclient.ClientSetup{
 		ClusterName:      clientName,
 		ClusterManifest:  clusterManifest,
 		VClusterManifest: vClusterManifest,
 	}
-	tfinformer := tfhandler.NewInformer(kubernetesConfig(kubeconfig), clientSetup, url, user, password, insecureSkipVerify, postJobContainerImage)
+	tfinformer := tfhandler.NewInformer(kubernetesConfig(kubeconfig), clientSetup, url, user, password, insecureSkipVerify, postJobContainerImage, postJobTolerations)
 	tfinformer.Run()
 	os.Exit(1) // should this be 0 instead?
 }
