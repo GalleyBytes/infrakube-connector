@@ -10,7 +10,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/galleybytes/terraform-operator-api/pkg/api"
+	"github.com/galleybytes/infra3-stella/pkg/api"
 )
 
 type CRUDInterface interface {
@@ -234,7 +234,7 @@ func (c ClusterClient) Health() CrudResource {
 }
 
 func (c ClusterClient) TFOHealth() CrudResource {
-	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/tfohealth", c.config.Host, c.clientName))
+	return newCRUDResource(c.Clientset, fmt.Sprintf("%s/api/v1/cluster/%s/infra3health", c.config.Host, c.clientName))
 }
 
 func newCRUDResource(c Clientset, url string) CrudResource {

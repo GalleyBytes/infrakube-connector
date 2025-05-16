@@ -7,8 +7,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/internal/tfhandler"
-	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/tfoapiclient"
+	"github.com/galleybytes/monitor/projects/infra3-connector/internal/tfhandler"
+	"github.com/galleybytes/monitor/projects/infra3-connector/pkg/tfoapiclient"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"

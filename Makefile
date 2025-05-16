@@ -1,5 +1,5 @@
 DOCKER_REPO ?= ghcr.io/galleybytes
-IMAGE_NAME ?= terraform-operator-remote-controller
+IMAGE_NAME ?= infra3-connector
 VERSION ?= $(shell  git describe --tags --dirty)
 ifeq ($(VERSION),)
 VERSION := 0.0.0

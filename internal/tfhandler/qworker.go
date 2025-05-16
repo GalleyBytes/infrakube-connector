@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/util"
-	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
+	tfv1beta1 "github.com/galleybytes/infra3/pkg/apis/infra3/v1"
+	"github.com/galleybytes/monitor/projects/infra3-connector/pkg/util"
 	"github.com/isaaguilar/kedge"
 	"gopkg.in/yaml.v2"
 	batchv1 "k8s.io/api/batch/v1"
@@ -228,7 +228,7 @@ func (i informer) createPostJob(namespace, name string) error {
 		},
 		RoleRef: rbacv1.RoleRef{
 			Kind:     "ClusterRole",
-			Name:     "terraform-operator-remote-controller", // TODO Get this from the deployment instead
+			Name:     "infra3-connector", // TODO Get this from the deployment instead
 			APIGroup: "rbac.authorization.k8s.io",
 		},
 	}
@@ -335,14 +335,14 @@ func applyRawManifest(c context.Context, config *rest.Config, raw []byte, namesp
 	return nil
 }
 
-func shouldPoll(tf tfv1beta1.Terraform) bool {
+func shouldPoll(tf tfv1beta1.Tf) bool {
 	if true {
 		return true
 	}
 	return tf.Spec.OutputsSecret != ""
 }
 
-func (i informer) requeueAfter(tf tfv1beta1.Terraform, t time.Duration, msg string) {
+func (i informer) requeueAfter(tf tfv1beta1.Tf, t time.Duration, msg string) {
 	go func() {
 		time.Sleep(t)
 		i.queue.PushBack(tf)

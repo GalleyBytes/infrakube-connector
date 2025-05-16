@@ -8,8 +8,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/galleybytes/monitor/projects/terraform-operator-remote-controller/pkg/tfoapiclient"
-	tfv1beta1 "github.com/galleybytes/terraform-operator/pkg/apis/tf/v1beta1"
+	tfv1beta1 "github.com/galleybytes/infra3/pkg/apis/infra3/v1"
+	"github.com/galleybytes/monitor/projects/infra3-connector/pkg/tfoapiclient"
 	"github.com/gammazero/deque"
 	gocache "github.com/patrickmn/go-cache"
 	corev1 "k8s.io/api/core/v1"
@@ -30,7 +30,7 @@ var (
 	terraformResource = schema.GroupVersionResource{
 		Group:    tfv1beta1.SchemeGroupVersion.Group,
 		Version:  tfv1beta1.SchemeGroupVersion.Version,
-		Resource: "terraforms",
+		Resource: "tfs",
 	}
 )
 
@@ -40,7 +40,7 @@ type informer struct {
 	config                *rest.Config
 	clientset             *tfoapiclient.Clientset
 	cache                 *gocache.Cache
-	queue                 *deque.Deque[tfv1beta1.Terraform]
+	queue                 *deque.Deque[tfv1beta1.Tf]
 	postJobContainerImage string
 	postJobTolerations    []byte
 	clusterName           string
@@ -89,7 +89,7 @@ func NewInformer(config *rest.Config, clientSetup tfoapiclient.ClientSetup, host
 		clientset:             clientset,
 		clusterName:           clientSetup.ClusterName,
 		cache:                 gocache.New(10*time.Minute, 10*time.Minute),
-		queue:                 &deque.Deque[tfv1beta1.Terraform]{},
+		queue:                 &deque.Deque[tfv1beta1.Tf]{},
 		postJobContainerImage: postJobContainerImage,
 		postJobTolerations:    postJobTolerations,
 	}
@@ -178,7 +178,7 @@ func eventQueryRetrier(crud tfoapiclient.CrudResource, crudType string, data any
 
 }
 
-func (i informer) createAndUpdate(tf *tfv1beta1.Terraform) {
+func (i informer) createAndUpdate(tf *tfv1beta1.Tf) {
 	log.Printf("=> Gathering resources to sync \t(%s/%s)", tf.Namespace, tf.Name)
 	err := i.SyncDependencies(tf)
 	if err != nil {
@@ -247,12 +247,12 @@ func (i informer) deleteEvent(obj interface{}) {
 	log.Println("delete event")
 }
 
-func assertTf(obj interface{}) (*tfv1beta1.Terraform, error) {
+func assertTf(obj interface{}) (*tfv1beta1.Tf, error) {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return nil, err
 	}
-	var tf tfv1beta1.Terraform
+	var tf tfv1beta1.Tf
 	err = json.Unmarshal(b, &tf)
 	if err != nil {
 		return nil, err
@@ -263,7 +263,7 @@ func assertTf(obj interface{}) (*tfv1beta1.Terraform, error) {
 // gatherDependenciesToSync will read the tf config and find k8s resources that exist on the originating cluster.
 // The resources found are requirements to execute the terraform workflow. Dependencies (resources) will be sent to
 // the hub cluster (via the tfo-api) so the workflow can access these resources when called upon.
-func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.List, error) {
+func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Tf) (*corev1.List, error) {
 	resourceList := corev1.List{}
 	resourceList.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
@@ -304,9 +304,9 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 		secretNames = append(secretNames, tf.Spec.SSHTunnel.SSHKeySecretRef.Name)
 	}
 
-	if tf.Spec.TerraformModule.ConfigMapSelector != nil {
+	if tf.Spec.TfModule.ConfigMapSelector != nil {
 		// terraformmodule.configmapselector
-		configMapNames = append(configMapNames, tf.Spec.TerraformModule.ConfigMapSelector.Name)
+		configMapNames = append(configMapNames, tf.Spec.TfModule.ConfigMapSelector.Name)
 	}
 
 	for _, c := range tf.Spec.TaskOptions {
@@ -401,7 +401,7 @@ func (i informer) gatherDependenciesToSync(tf *tfv1beta1.Terraform) (*corev1.Lis
 	return &resourceList, nil
 }
 
-func (i informer) SyncDependencies(tf *tfv1beta1.Terraform) error {
+func (i informer) SyncDependencies(tf *tfv1beta1.Tf) error {
 	// for remote operation to work, the hub cluster must "look-like" the originating cluster. To do so
 	// all the resources that a workflow depends on (ie secrets and configmaps) must be synced to the
 	// hub cluster (ie the vcluster).
