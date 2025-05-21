@@ -8,8 +8,8 @@ import (
 	"log"
 	"time"
 
-	tfv1beta1 "github.com/galleybytes/infra3/pkg/apis/infra3/v1"
-	"github.com/galleybytes/monitor/projects/infra3-connector/pkg/tfoapiclient"
+	"github.com/galleybytes/infrakube-connector/pkg/tfoapiclient"
+	tfv1beta1 "github.com/galleybytes/infrakube/pkg/apis/infra3/v1"
 	"github.com/gammazero/deque"
 	gocache "github.com/patrickmn/go-cache"
 	corev1 "k8s.io/api/core/v1"

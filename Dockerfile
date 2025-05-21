@@ -1,4 +1,4 @@
 FROM scratch
 COPY bin/ctrl /ctrl
 ENTRYPOINT ["/ctrl"]
-LABEL org.opencontainers.image.source https://github.com/galleybytes/infra3-connector
+LABEL org.opencontainers.image.source https://github.com/galleybytes/infrakube-connector

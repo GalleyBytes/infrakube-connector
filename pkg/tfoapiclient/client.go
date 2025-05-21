@@ -10,7 +10,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/galleybytes/infra3-stella/pkg/api"
+	"github.com/galleybytes/infrakube-stella/pkg/api"
 )
 
 type CRUDInterface interface {

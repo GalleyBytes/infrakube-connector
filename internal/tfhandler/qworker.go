@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	tfv1beta1 "github.com/galleybytes/infra3/pkg/apis/infra3/v1"
-	"github.com/galleybytes/monitor/projects/infra3-connector/pkg/util"
+	"github.com/galleybytes/infrakube-connector/pkg/util"
+	tfv1beta1 "github.com/galleybytes/infrakube/pkg/apis/infra3/v1"
 	"github.com/isaaguilar/kedge"
 	"gopkg.in/yaml.v2"
 	batchv1 "k8s.io/api/batch/v1"
@@ -259,11 +259,11 @@ func (i informer) createPostJob(namespace, name string) error {
 							ImagePullPolicy: "IfNotPresent",
 							Env: []corev1.EnvVar{
 								{
-									Name:  "TFO_RESOURCE_NAME",
+									Name:  "I3_RESOURCE_NAME",
 									Value: name,
 								},
 								{
-									Name:  "TFO_RESOURCE_NAMESPACE",
+									Name:  "I3_RESOURCE_NAMESPACE",
 									Value: namespace,
 								},
 							},

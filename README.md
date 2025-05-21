@@ -8,11 +8,11 @@ Set up the following environment vars for the API server:
 
 ```bash
 CLIENT_NAME=foo-k8s-cluster
-TFO_API_PROTOCOL=http
-TFO_API_HOST=localhost
-TFO_API_PORT=5001
-TFO_API_LOGIN_USER=username
-TFO_API_LOGIN_PASSWORD=password
+I3_API_PROTOCOL=http
+I3_API_HOST=localhost
+I3_API_PORT=5001
+I3_API_LOGIN_USER=username
+I3_API_LOGIN_PASSWORD=password
 ```
 
 Make sure you're connected to a cluster:

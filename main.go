@@ -7,8 +7,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/galleybytes/monitor/projects/infra3-connector/internal/tfhandler"
-	"github.com/galleybytes/monitor/projects/infra3-connector/pkg/tfoapiclient"
+	"github.com/galleybytes/infrakube-connector/internal/tfhandler"
+	"github.com/galleybytes/infrakube-connector/pkg/tfoapiclient"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
@@ -43,13 +43,13 @@ func main() {
 	klog.SetOutput(io.Discard)
 	kubeconfig := os.Getenv("KUBECONFIG")
 	clientName := os.Getenv("CLIENT_NAME")
-	proto := os.Getenv("TFO_API_PROTOCOL")
-	host := os.Getenv("TFO_API_HOST")
-	port := os.Getenv("TFO_API_PORT")
-	user := os.Getenv("TFO_API_LOGIN_USER")
-	password := os.Getenv("TFO_API_LOGIN_PASSWORD")
-	clusterManifest := readFile(os.Getenv("TFO_API_CLUSTER_MANIFEST"))
-	vClusterManifest := readFile(os.Getenv("TFO_API_VCLUSTER_MANIFEST"))
+	proto := os.Getenv("I3_API_PROTOCOL")
+	host := os.Getenv("I3_API_HOST")
+	port := os.Getenv("I3_API_PORT")
+	user := os.Getenv("I3_API_LOGIN_USER")
+	password := os.Getenv("I3_API_LOGIN_PASSWORD")
+	clusterManifest := readFile(os.Getenv("I3_API_CLUSTER_MANIFEST"))
+	vClusterManifest := readFile(os.Getenv("I3_API_VCLUSTER_MANIFEST"))
 	postJobContainerImage := os.Getenv("POST_JOB_CONTAINER_IMAGE")
 	postJobTolerations := readFile(os.Getenv("POST_JOB_TOLERATIONS"))
 	url := fmt.Sprintf("%s://%s:%s", proto, host, port)
